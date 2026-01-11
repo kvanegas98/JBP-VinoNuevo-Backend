@@ -1,0 +1,62 @@
+﻿## Archivos de usuario de Visual Studio
+.vs/
+.vscode/
+*.user
+*.suo
+
+## Archivos de compilación
+bin/
+obj/
+out/
+Debug/
+Release/
+
+## Dependencias y paquetes
+*.nupkg
+*.snupkg
+packages/
+*.nuget.props
+*.nuget.targets
+
+## Archivos de publicación
+publish/
+*.Publish.xml
+*.pubxml
+*.pubxml.user
+
+## Archivos de logs
+*.log
+Logs/
+log/
+
+## Archivos temporales
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.DS_Store
+Thumbs.db
+
+## Archivos generados por herramientas
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+*.codecov
+
+
+## Certificados locales
+*.pfx
+*.cer
+*.key
+
+## Archivos de sistema
+.idea/
+.env
+.env.local
+node_modules/
+
+## Archivos de Docker (opcional, si no quieres subirlos)
+# docker-compose.override.yml
+# *.Dockerfile

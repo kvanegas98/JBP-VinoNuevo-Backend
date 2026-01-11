@@ -1,0 +1,231 @@
+-- =============================================
+-- Script para crear las tablas del Sistema Instituto
+-- SQL Server
+-- =============================================
+
+-- =============================================
+-- TABLAS DE CATÁLOGOS
+-- =============================================
+
+-- Tabla: rol
+CREATE TABLE rol (
+    RolId INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(50) NOT NULL,
+    Descripcion NVARCHAR(200) NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+-- Tabla: usuario
+CREATE TABLE usuario (
+    UsuarioId INT IDENTITY(1,1) PRIMARY KEY,
+    RolId INT NOT NULL,
+    Nombre NVARCHAR(100) NOT NULL,
+    Email NVARCHAR(100) NOT NULL,
+    PasswordHash VARBINARY(MAX) NOT NULL,
+    PasswordSalt VARBINARY(MAX) NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1,
+    CONSTRAINT FK_Usuario_Rol FOREIGN KEY (RolId) REFERENCES rol(RolId)
+);
+
+-- Tabla: anio_lectivo
+CREATE TABLE anio_lectivo (
+    AnioLectivoId INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(50) NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+-- Tabla: modalidad
+CREATE TABLE modalidad (
+    ModalidadId INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+-- Tabla: categoria_estudiante
+CREATE TABLE categoria_estudiante (
+    CategoriaEstudianteId INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+-- Tabla: red
+CREATE TABLE red (
+    RedId INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+-- Tabla: cargo
+CREATE TABLE cargo (
+    CargoId INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    PorcentajeDescuento DECIMAL(5,2) NOT NULL DEFAULT 0,
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+-- Tabla: materia
+CREATE TABLE materia (
+    MateriaId INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+-- Tabla: tipo_pago
+CREATE TABLE tipo_pago (
+    TipoPagoId INT IDENTITY(1,1) PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1
+);
+
+-- Tabla: precio_matricula
+CREATE TABLE precio_matricula (
+    PrecioMatriculaId INT IDENTITY(1,1) PRIMARY KEY,
+    CategoriaEstudianteId INT NOT NULL,
+    AnioLectivoId INT NOT NULL,
+    Precio DECIMAL(18,2) NOT NULL,
+    Activo BIT NOT NULL DEFAULT 1,
+    CONSTRAINT FK_PrecioMatricula_Categoria FOREIGN KEY (CategoriaEstudianteId) REFERENCES categoria_estudiante(CategoriaEstudianteId),
+    CONSTRAINT FK_PrecioMatricula_AnioLectivo FOREIGN KEY (AnioLectivoId) REFERENCES anio_lectivo(AnioLectivoId)
+);
+
+-- =============================================
+-- TABLAS PRINCIPALES DEL INSTITUTO
+-- =============================================
+
+-- Tabla: estudiante
+CREATE TABLE estudiante (
+    EstudianteId INT IDENTITY(1,1) PRIMARY KEY,
+    NombreCompleto NVARCHAR(200) NOT NULL,
+    Cedula NVARCHAR(20) NULL,
+    CorreoElectronico NVARCHAR(100) NULL,
+    Celular NVARCHAR(20) NULL,
+    Ciudad NVARCHAR(100) NULL,
+    TipoEstudiante NVARCHAR(20) NOT NULL,
+    EsInterno BIT NOT NULL DEFAULT 0,
+    RedId INT NULL,
+    IglesiaOrigen NVARCHAR(200) NULL,
+    PastorOrigen NVARCHAR(200) NULL,
+    DireccionIglesiaOrigen NVARCHAR(300) NULL,
+    TelefonoIglesiaOrigen NVARCHAR(20) NULL,
+    Activo BIT NOT NULL DEFAULT 1,
+    CONSTRAINT FK_Estudiante_Red FOREIGN KEY (RedId) REFERENCES red(RedId)
+);
+
+-- Tabla: estudiante_cargo
+CREATE TABLE estudiante_cargo (
+    EstudianteCargoId INT IDENTITY(1,1) PRIMARY KEY,
+    EstudianteId INT NOT NULL,
+    CargoId INT NOT NULL,
+    CONSTRAINT FK_EstudianteCargo_Estudiante FOREIGN KEY (EstudianteId) REFERENCES estudiante(EstudianteId),
+    CONSTRAINT FK_EstudianteCargo_Cargo FOREIGN KEY (CargoId) REFERENCES cargo(CargoId)
+);
+
+-- Tabla: matricula
+CREATE TABLE matricula (
+    MatriculaId INT IDENTITY(1,1) PRIMARY KEY,
+    EstudianteId INT NOT NULL,
+    AnioLectivoId INT NOT NULL,
+    ModalidadId INT NOT NULL,
+    CategoriaEstudianteId INT NOT NULL,
+    FechaMatricula DATETIME NOT NULL DEFAULT GETDATE(),
+    MontoMatricula DECIMAL(18,2) NOT NULL,
+    DescuentoAplicado DECIMAL(18,2) NOT NULL DEFAULT 0,
+    MontoFinal DECIMAL(18,2) NOT NULL,
+    Estado NVARCHAR(20) NOT NULL DEFAULT 'Activa',
+    CONSTRAINT FK_Matricula_Estudiante FOREIGN KEY (EstudianteId) REFERENCES estudiante(EstudianteId),
+    CONSTRAINT FK_Matricula_AnioLectivo FOREIGN KEY (AnioLectivoId) REFERENCES anio_lectivo(AnioLectivoId),
+    CONSTRAINT FK_Matricula_Modalidad FOREIGN KEY (ModalidadId) REFERENCES modalidad(ModalidadId),
+    CONSTRAINT FK_Matricula_Categoria FOREIGN KEY (CategoriaEstudianteId) REFERENCES categoria_estudiante(CategoriaEstudianteId)
+);
+
+-- Tabla: nota
+CREATE TABLE nota (
+    NotaId INT IDENTITY(1,1) PRIMARY KEY,
+    MatriculaId INT NOT NULL,
+    MateriaId INT NOT NULL,
+    Calificacion DECIMAL(5,2) NOT NULL,
+    FechaRegistro DATETIME NOT NULL DEFAULT GETDATE(),
+    Observaciones NVARCHAR(500) NULL,
+    CONSTRAINT FK_Nota_Matricula FOREIGN KEY (MatriculaId) REFERENCES matricula(MatriculaId),
+    CONSTRAINT FK_Nota_Materia FOREIGN KEY (MateriaId) REFERENCES materia(MateriaId)
+);
+
+-- Tabla: pago
+CREATE TABLE pago (
+    PagoId INT IDENTITY(1,1) PRIMARY KEY,
+    MatriculaId INT NOT NULL,
+    TipoPagoId INT NOT NULL,
+    Monto DECIMAL(18,2) NOT NULL,
+    FechaPago DATETIME NOT NULL DEFAULT GETDATE(),
+    NumeroRecibo NVARCHAR(100) NULL,
+    Observaciones NVARCHAR(500) NULL,
+    Estado NVARCHAR(20) NOT NULL DEFAULT 'Pendiente',
+    CONSTRAINT FK_Pago_Matricula FOREIGN KEY (MatriculaId) REFERENCES matricula(MatriculaId),
+    CONSTRAINT FK_Pago_TipoPago FOREIGN KEY (TipoPagoId) REFERENCES tipo_pago(TipoPagoId)
+);
+
+-- =============================================
+-- ÍNDICES
+-- =============================================
+
+CREATE INDEX IX_Estudiante_NombreCompleto ON estudiante(NombreCompleto);
+CREATE INDEX IX_Estudiante_Cedula ON estudiante(Cedula);
+CREATE INDEX IX_Matricula_EstudianteId ON matricula(EstudianteId);
+CREATE INDEX IX_Matricula_Estado ON matricula(Estado);
+CREATE INDEX IX_Nota_MatriculaId ON nota(MatriculaId);
+CREATE INDEX IX_Pago_MatriculaId ON pago(MatriculaId);
+CREATE INDEX IX_Pago_Estado ON pago(Estado);
+
+-- =============================================
+-- DATOS INICIALES DE CATÁLOGOS
+-- =============================================
+
+-- Roles
+INSERT INTO rol (Nombre, Descripcion) VALUES ('Administrador', 'Acceso total al sistema');
+INSERT INTO rol (Nombre, Descripcion) VALUES ('Secretaria', 'Gestión de estudiantes y matrículas');
+
+-- Años lectivos
+INSERT INTO anio_lectivo (Nombre) VALUES ('2024');
+INSERT INTO anio_lectivo (Nombre) VALUES ('2025');
+
+-- Modalidades
+INSERT INTO modalidad (Nombre) VALUES ('Presencial');
+INSERT INTO modalidad (Nombre) VALUES ('Virtual');
+
+-- Categorías de estudiante
+INSERT INTO categoria_estudiante (Nombre) VALUES ('Interno');
+INSERT INTO categoria_estudiante (Nombre) VALUES ('Externo');
+
+-- Redes
+INSERT INTO red (Nombre) VALUES ('Shaddai');
+INSERT INTO red (Nombre) VALUES ('Yahweh');
+INSERT INTO red (Nombre) VALUES ('El Elyón');
+INSERT INTO red (Nombre) VALUES ('Enmanuel');
+INSERT INTO red (Nombre) VALUES ('Adonai');
+
+-- Cargos con descuentos
+INSERT INTO cargo (Nombre, PorcentajeDescuento) VALUES ('Becado', 100.00);
+INSERT INTO cargo (Nombre, PorcentajeDescuento) VALUES ('Matrimonio', 50.00);
+INSERT INTO cargo (Nombre, PorcentajeDescuento) VALUES ('Líder de casa de paz', 50.00);
+INSERT INTO cargo (Nombre, PorcentajeDescuento) VALUES ('Evangelista elite', 25.00);
+
+
+-- Materias
+INSERT INTO materia (Nombre) VALUES ('Biblia I');
+INSERT INTO materia (Nombre) VALUES ('Biblia II');
+INSERT INTO materia (Nombre) VALUES ('Teología');
+INSERT INTO materia (Nombre) VALUES ('Liderazgo');
+INSERT INTO materia (Nombre) VALUES ('Evangelismo');
+
+-- Tipos de pago
+INSERT INTO tipo_pago (Nombre) VALUES ('Efectivo');
+INSERT INTO tipo_pago (Nombre) VALUES ('Transferencia');
+INSERT INTO tipo_pago (Nombre) VALUES ('Tarjeta');
+
+-- Precios de matrícula
+INSERT INTO precio_matricula (CategoriaEstudianteId, AnioLectivoId, Precio) VALUES (1, 1, 150.00);
+INSERT INTO precio_matricula (CategoriaEstudianteId, AnioLectivoId, Precio) VALUES (1, 2, 160.00);
+INSERT INTO precio_matricula (CategoriaEstudianteId, AnioLectivoId, Precio) VALUES (2, 1, 0.00);
+INSERT INTO precio_matricula (CategoriaEstudianteId, AnioLectivoId, Precio) VALUES (2, 2, 0.00);
+INSERT INTO precio_matricula (CategoriaEstudianteId, AnioLectivoId, Precio) VALUES (3, 1, 75.00);
+INSERT INTO precio_matricula (CategoriaEstudianteId, AnioLectivoId, Precio) VALUES (3, 2, 80.00);
