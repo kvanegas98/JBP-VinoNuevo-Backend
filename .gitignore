@@ -60,3 +60,29 @@ node_modules/
 ## Archivos de Docker (opcional, si no quieres subirlos)
 # docker-compose.override.yml
 # *.Dockerfile
+
+## ⚠️ IMPORTANTE: Archivos de configuración con datos sensibles
+appsettings.json
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.*.json
+# Mantener el ejemplo
+!appsettings.Example.json
+
+## Base de datos local (SQLite, LocalDB)
+*.db
+*.sqlite
+*.sqlite3
+*.mdf
+*.ldf
+
+## Archivos de sesión y caché
+*.sln.DotSettings.user
+.vs/
+.vscode/
+
+## Scripts SQL con datos sensibles o de prueba
+# Si tienes scripts con datos reales, agrégalos aquí
+# Scripts/DatosPrueba.sql
+# Scripts/Backups/*.sql
