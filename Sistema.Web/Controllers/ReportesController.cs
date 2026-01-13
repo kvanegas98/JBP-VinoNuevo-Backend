@@ -1210,5 +1210,376 @@ namespace Sistema.Web.Controllers
                 });
             }
         }
+
+        // GET: api/Reportes/Predictivo
+        // Análisis predictivo de riesgo de deserción con recomendaciones personalizadas
+        [HttpGet("[action]")]
+        public async Task<IActionResult> Predictivo(
+            [FromQuery] int? anioLectivoId = null,
+            [FromQuery] int? moduloId = null,
+            [FromQuery] int? redId = null,
+            [FromQuery] string nivelRiesgo = null, // "bajo", "medio", "alto", "critico"
+            [FromQuery] int pagina = 1,
+            [FromQuery] int porPagina = 20)
+        {
+            try
+            {
+                // Obtener matrículas activas
+                var query = _context.Matriculas
+                    .Where(m => m.Estado == "Activa")
+                    .Include(m => m.Estudiante)
+                        .ThenInclude(e => e.Red)
+                    .Include(m => m.Modulo)
+                    .AsQueryable();
+
+                // Filtros
+                if (anioLectivoId.HasValue)
+                {
+                    query = query.Where(m => m.Modulo.AnioLectivoId == anioLectivoId.Value);
+                }
+
+                if (moduloId.HasValue)
+                {
+                    query = query.Where(m => m.ModuloId == moduloId.Value);
+                }
+
+                if (redId.HasValue)
+                {
+                    query = query.Where(m => m.Estudiante.RedId == redId.Value);
+                }
+
+                var matriculasActivas = await query.ToListAsync();
+                var estudiantesConRiesgo = new System.Collections.Generic.List<object>();
+                var hoy = DateTime.Now;
+
+                foreach (var mat in matriculasActivas)
+                {
+                    // ============ FACTORES DE RIESGO ============
+                    int puntosRiesgo = 0;
+                    var factoresRiesgo = new System.Collections.Generic.List<string>();
+                    var recomendaciones = new System.Collections.Generic.List<string>();
+
+                    // FACTOR 1: Morosidad (peso alto)
+                    var pagoMatricula = await _context.Pagos
+                        .Where(p => p.MatriculaId == mat.MatriculaId &&
+                                   p.TipoPago == "Matricula" &&
+                                   p.Estado == "Completado")
+                        .OrderBy(p => p.FechaPago)
+                        .FirstOrDefaultAsync();
+
+                    int materiasEnMora = 0;
+                    if (pagoMatricula != null)
+                    {
+                        int mesesTranscurridos = ((hoy.Year - pagoMatricula.FechaPago.Year) * 12) +
+                                                (hoy.Month - pagoMatricula.FechaPago.Month) + 1;
+                        int materiasQueDeberianEstarPagadas = mesesTranscurridos - 1;
+
+                        if (materiasQueDeberianEstarPagadas > 0)
+                        {
+                            var totalMaterias = await _context.Materias
+                                .CountAsync(m => m.ModuloId == mat.ModuloId && m.Activo);
+
+                            if (materiasQueDeberianEstarPagadas > totalMaterias)
+                                materiasQueDeberianEstarPagadas = totalMaterias;
+
+                            var cantidadPagadas = await _context.Pagos
+                                .CountAsync(p => p.MatriculaId == mat.MatriculaId &&
+                                                p.TipoPago == "Mensualidad" &&
+                                                p.Estado == "Completado" &&
+                                                p.MateriaId.HasValue);
+
+                            materiasEnMora = materiasQueDeberianEstarPagadas - cantidadPagadas;
+                            if (materiasEnMora < 0) materiasEnMora = 0;
+
+                            if (materiasEnMora >= 3)
+                            {
+                                puntosRiesgo += 40;
+                                factoresRiesgo.Add($"Mora crítica: {materiasEnMora} materias sin pagar");
+                                recomendaciones.Add("URGENTE: Contactar inmediatamente para plan de pagos");
+                            }
+                            else if (materiasEnMora == 2)
+                            {
+                                puntosRiesgo += 25;
+                                factoresRiesgo.Add($"Mora moderada: {materiasEnMora} materias pendientes");
+                                recomendaciones.Add("Ofrecer facilidades de pago o becas parciales");
+                            }
+                            else if (materiasEnMora == 1)
+                            {
+                                puntosRiesgo += 10;
+                                factoresRiesgo.Add("Mora leve: 1 materia pendiente");
+                                recomendaciones.Add("Recordatorio amigable de pago");
+                            }
+                        }
+                    }
+
+                    // FACTOR 2: Rendimiento académico
+                    var notasEstudiante = await _context.Notas
+                        .Where(n => n.MatriculaId == mat.MatriculaId)
+                        .ToListAsync();
+
+                    decimal? promedioGeneral = null;
+                    if (notasEstudiante.Any())
+                    {
+                        promedioGeneral = notasEstudiante.Average(n => n.Promedio);
+                        var materiasReprobadas = notasEstudiante.Count(n => n.Promedio < 70);
+
+                        if (promedioGeneral < 60)
+                        {
+                            puntosRiesgo += 30;
+                            factoresRiesgo.Add($"Rendimiento crítico: promedio {promedioGeneral:F1}");
+                            recomendaciones.Add("Asignar tutor académico urgente");
+                        }
+                        else if (promedioGeneral < 70)
+                        {
+                            puntosRiesgo += 20;
+                            factoresRiesgo.Add($"Rendimiento bajo: promedio {promedioGeneral:F1}");
+                            recomendaciones.Add("Refuerzo académico y seguimiento personalizado");
+                        }
+                        else if (promedioGeneral < 80)
+                        {
+                            puntosRiesgo += 5;
+                            factoresRiesgo.Add("Rendimiento regular");
+                            recomendaciones.Add("Monitoreo regular del progreso");
+                        }
+
+                        if (materiasReprobadas >= 2)
+                        {
+                            puntosRiesgo += 15;
+                            factoresRiesgo.Add($"{materiasReprobadas} materias reprobadas");
+                            recomendaciones.Add("Evaluación de dificultades de aprendizaje");
+                        }
+                    }
+                    else
+                    {
+                        puntosRiesgo += 15;
+                        factoresRiesgo.Add("Sin calificaciones registradas");
+                        recomendaciones.Add("Verificar asistencia y participación del estudiante");
+                    }
+
+                    // FACTOR 3: Patrón de pagos irregulares
+                    var historialPagos = await _context.Pagos
+                        .Where(p => p.MatriculaId == mat.MatriculaId &&
+                                   p.Estado == "Completado" &&
+                                   p.TipoPago == "Mensualidad")
+                        .OrderBy(p => p.FechaPago)
+                        .ToListAsync();
+
+                    if (historialPagos.Count >= 2)
+                    {
+                        var diferencias = new System.Collections.Generic.List<int>();
+                        for (int i = 1; i < historialPagos.Count; i++)
+                        {
+                            var dias = (historialPagos[i].FechaPago - historialPagos[i - 1].FechaPago).Days;
+                            diferencias.Add(dias);
+                        }
+
+                        var promedioDias = diferencias.Average();
+                        if (promedioDias > 45)
+                        {
+                            puntosRiesgo += 10;
+                            factoresRiesgo.Add("Pagos irregulares (más de 45 días entre pagos)");
+                            recomendaciones.Add("Configurar recordatorios automáticos de pago");
+                        }
+                    }
+
+                    // FACTOR 4: Tiempo desde último pago
+                    var ultimoPago = await _context.Pagos
+                        .Where(p => p.MatriculaId == mat.MatriculaId &&
+                                   p.Estado == "Completado")
+                        .OrderByDescending(p => p.FechaPago)
+                        .FirstOrDefaultAsync();
+
+                    int? diasSinPagar = null;
+                    if (ultimoPago != null)
+                    {
+                        diasSinPagar = (hoy - ultimoPago.FechaPago).Days;
+                        if (diasSinPagar > 60)
+                        {
+                            puntosRiesgo += 20;
+                            factoresRiesgo.Add($"{diasSinPagar} días sin realizar pagos");
+                            recomendaciones.Add("Visita presencial o llamada urgente");
+                        }
+                        else if (diasSinPagar > 40)
+                        {
+                            puntosRiesgo += 10;
+                            factoresRiesgo.Add($"{diasSinPagar} días sin pagos recientes");
+                            recomendaciones.Add("Contacto preventivo para evaluar situación");
+                        }
+                    }
+
+                    // FACTOR 5: Estudiante sin beca pero con problemas
+                    if (!mat.Estudiante.EsBecado && materiasEnMora > 0)
+                    {
+                        puntosRiesgo += 5;
+                        factoresRiesgo.Add("Posible necesidad de apoyo financiero");
+                        recomendaciones.Add("Evaluar elegibilidad para beca o descuento");
+                    }
+
+                    // ============ CLASIFICACIÓN DE RIESGO ============
+                    string nivelRiesgoCalculado;
+                    string colorRiesgo;
+                    decimal probabilidadDesercion;
+
+                    if (puntosRiesgo >= 60)
+                    {
+                        nivelRiesgoCalculado = "critico";
+                        colorRiesgo = "#d32f2f";
+                        probabilidadDesercion = Math.Min(95, 70 + (puntosRiesgo - 60));
+                    }
+                    else if (puntosRiesgo >= 40)
+                    {
+                        nivelRiesgoCalculado = "alto";
+                        colorRiesgo = "#f57c00";
+                        probabilidadDesercion = 40 + (puntosRiesgo - 40);
+                    }
+                    else if (puntosRiesgo >= 20)
+                    {
+                        nivelRiesgoCalculado = "medio";
+                        colorRiesgo = "#fbc02d";
+                        probabilidadDesercion = 20 + (puntosRiesgo - 20);
+                    }
+                    else
+                    {
+                        nivelRiesgoCalculado = "bajo";
+                        colorRiesgo = "#388e3c";
+                        probabilidadDesercion = puntosRiesgo;
+                    }
+
+                    // Filtro de nivel de riesgo
+                    if (!string.IsNullOrEmpty(nivelRiesgo) && nivelRiesgoCalculado != nivelRiesgo.ToLower())
+                    {
+                        continue;
+                    }
+
+                    // Solo agregar si tiene algún riesgo
+                    if (puntosRiesgo > 0)
+                    {
+                        if (puntosRiesgo >= 60)
+                        {
+                            recomendaciones.Insert(0, "⚠️ ACCIÓN INMEDIATA REQUERIDA");
+                        }
+
+                        estudiantesConRiesgo.Add(new
+                        {
+                            estudianteId = mat.EstudianteId,
+                            estudianteCodigo = mat.Estudiante.Codigo,
+                            estudianteNombre = mat.Estudiante.NombreCompleto,
+                            celular = mat.Estudiante.Celular,
+                            correoElectronico = mat.Estudiante.CorreoElectronico,
+                            matriculaId = mat.MatriculaId,
+                            moduloNombre = mat.Modulo.Nombre,
+                            redNombre = mat.Estudiante.Red?.Nombre ?? "Sin Red",
+                            esInterno = mat.Estudiante.EsInterno,
+                            esBecado = mat.Estudiante.EsBecado,
+                            puntosRiesgo = puntosRiesgo,
+                            nivelRiesgo = nivelRiesgoCalculado,
+                            colorRiesgo = colorRiesgo,
+                            probabilidadDesercion = Math.Round(probabilidadDesercion, 1),
+                            factoresRiesgo = factoresRiesgo,
+                            recomendaciones = recomendaciones,
+                            materiasEnMora = materiasEnMora,
+                            promedioAcademico = promedioGeneral.HasValue ? Math.Round(promedioGeneral.Value, 1) : (decimal?)null,
+                            diasSinPagar = diasSinPagar
+                        });
+                    }
+                }
+
+                // Ordenar por riesgo (mayor a menor)
+                var estudiantesOrdenados = estudiantesConRiesgo
+                    .OrderByDescending(e => ((dynamic)e).puntosRiesgo)
+                    .ThenBy(e => ((dynamic)e).estudianteNombre)
+                    .ToList();
+
+                // Paginación
+                var total = estudiantesOrdenados.Count;
+                var datosPaginados = estudiantesOrdenados
+                    .Skip((pagina - 1) * porPagina)
+                    .Take(porPagina)
+                    .ToList();
+
+                // Resumen estadístico
+                var porNivelRiesgo = estudiantesOrdenados
+                    .GroupBy(e => ((dynamic)e).nivelRiesgo)
+                    .Select(g => new {
+                        nivel = g.Key,
+                        cantidad = g.Count(),
+                        porcentaje = total > 0 ? Math.Round((decimal)g.Count() / total * 100, 1) : 0
+                    })
+                    .ToList();
+
+                var promedioRiesgoGeneral = estudiantesOrdenados.Any()
+                    ? Math.Round(estudiantesOrdenados.Average(e => (int)((dynamic)e).puntosRiesgo), 1)
+                    : 0;
+
+                // Top 10 casos prioritarios
+                var estudiantesPrioritarios = estudiantesOrdenados
+                    .Take(10)
+                    .Select(e => new {
+                        nombre = ((dynamic)e).estudianteNombre,
+                        nivel = ((dynamic)e).nivelRiesgo,
+                        probabilidad = ((dynamic)e).probabilidadDesercion,
+                        accionPrincipal = ((dynamic)e).recomendaciones.Count > 0
+                            ? ((dynamic)e).recomendaciones[0]
+                            : "Monitorear"
+                    })
+                    .ToList();
+
+                return Ok(new
+                {
+                    resumen = new
+                    {
+                        totalEstudiantesAnalizados = matriculasActivas.Count,
+                        estudiantesConRiesgo = total,
+                        porcentajeEnRiesgo = matriculasActivas.Count > 0
+                            ? Math.Round((decimal)total / matriculasActivas.Count * 100, 1)
+                            : 0,
+                        promedioRiesgo = promedioRiesgoGeneral,
+                        distribucion = new
+                        {
+                            critico = porNivelRiesgo.FirstOrDefault(n => n.nivel == "critico")?.cantidad ?? 0,
+                            alto = porNivelRiesgo.FirstOrDefault(n => n.nivel == "alto")?.cantidad ?? 0,
+                            medio = porNivelRiesgo.FirstOrDefault(n => n.nivel == "medio")?.cantidad ?? 0,
+                            bajo = porNivelRiesgo.FirstOrDefault(n => n.nivel == "bajo")?.cantidad ?? 0
+                        },
+                        porcentajes = new
+                        {
+                            critico = porNivelRiesgo.FirstOrDefault(n => n.nivel == "critico")?.porcentaje ?? 0,
+                            alto = porNivelRiesgo.FirstOrDefault(n => n.nivel == "alto")?.porcentaje ?? 0,
+                            medio = porNivelRiesgo.FirstOrDefault(n => n.nivel == "medio")?.porcentaje ?? 0,
+                            bajo = porNivelRiesgo.FirstOrDefault(n => n.nivel == "bajo")?.porcentaje ?? 0
+                        }
+                    },
+                    prioritarios = estudiantesPrioritarios,
+                    total = total,
+                    pagina = pagina,
+                    porPagina = porPagina,
+                    totalPaginas = (int)Math.Ceiling((double)total / porPagina),
+                    datos = datosPaginados,
+                    metodologia = new
+                    {
+                        descripcion = "Análisis predictivo basado en múltiples factores de riesgo",
+                        factoresEvaluados = new[]
+                        {
+                            "Morosidad y cantidad de materias sin pagar (40 pts)",
+                            "Rendimiento académico y materias reprobadas (30 pts)",
+                            "Tiempo desde último pago (20 pts)",
+                            "Regularidad en patrón de pagos (10 pts)",
+                            "Necesidad de apoyo financiero (5 pts)"
+                        },
+                        escalaPuntos = "0-19: Bajo | 20-39: Medio | 40-59: Alto | 60+: Crítico",
+                        actualizacion = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Error al generar el análisis predictivo",
+                    error = ex.Message,
+                    innerError = ex.InnerException?.Message
+                });
+            }
+        }
     }
 }
