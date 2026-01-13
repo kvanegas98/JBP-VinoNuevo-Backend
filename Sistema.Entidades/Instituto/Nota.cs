@@ -14,7 +14,22 @@ namespace Sistema.Entidades.Instituto
         [Required]
         public int MateriaId { get; set; }
 
-        public decimal Calificacion { get; set; }
+        /// <summary>
+        /// Primera nota (0-100)
+        /// </summary>
+        [Range(0, 100)]
+        public decimal Nota1 { get; set; }
+
+        /// <summary>
+        /// Segunda nota (0-100)
+        /// </summary>
+        [Range(0, 100)]
+        public decimal Nota2 { get; set; }
+
+        /// <summary>
+        /// Promedio calculado de Nota1 y Nota2
+        /// </summary>
+        public decimal Promedio { get; set; }
 
         public DateTime FechaRegistro { get; set; }
 

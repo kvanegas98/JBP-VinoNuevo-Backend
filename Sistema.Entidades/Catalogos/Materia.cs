@@ -14,6 +14,11 @@ namespace Sistema.Entidades.Catalogos
         [Required]
         public int ModuloId { get; set; }
 
+        /// <summary>
+        /// Orden de la materia dentro del módulo (1 = primer mes, 2 = segundo mes, etc.)
+        /// </summary>
+        public int Orden { get; set; }
+
         public bool Activo { get; set; }
 
         // Navegación

@@ -15,6 +15,9 @@ namespace Sistema.Datos.Mapping.Catalogos
                 .HasMaxLength(100)
                 .IsRequired();
 
+            builder.Property(m => m.Orden)
+                .HasDefaultValue(1);
+
             builder.HasOne(m => m.Modulo)
                 .WithMany(mod => mod.Materias)
                 .HasForeignKey(m => m.ModuloId);

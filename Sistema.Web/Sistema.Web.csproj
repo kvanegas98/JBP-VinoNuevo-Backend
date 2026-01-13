@@ -11,6 +11,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="2.1.10" />
+    <PackageReference Include="ClosedXML" Version="0.95.4" />
+    <PackageReference Include="iTextSharp.LGPLv2.Core" Version="1.7.3" />
   </ItemGroup>
 
   <ItemGroup>

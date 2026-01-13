@@ -82,27 +82,74 @@ namespace Sistema.Web.Controllers
                     })
                     .ToList();
 
-                // Pagos pendientes (estimado)
+                // MORA: Solo cuenta materias de meses ANTERIORES no pagadas
+                // El mes 1 comienza desde el PAGO DE MATRÍCULA (cuando el estudiante queda inscrito)
                 var matriculasActivas = await _context.Matriculas
                     .Where(m => m.Estado == "Activa")
                     .Include(m => m.Modulo)
+                    .Include(m => m.Estudiante)
+                    .Include(m => m.CategoriaEstudiante)
                     .ToListAsync();
 
-                decimal pagosPendientesEstimado = 0;
+                decimal moraTotal = 0;
+                int estudiantesEnMora = 0;
+                var hoy = DateTime.Now;
+
                 foreach (var mat in matriculasActivas)
                 {
-                    var totalMaterias = await _context.Materias
-                        .CountAsync(m => m.ModuloId == mat.ModuloId && m.Activo);
-                    var materiasPagadas = await _context.Pagos
+                    // Obtener el pago de matrícula para esta matrícula
+                    var pagoMatricula = await _context.Pagos
+                        .Where(p => p.MatriculaId == mat.MatriculaId &&
+                                   p.TipoPago == "Matricula" &&
+                                   p.Estado == "Completado")
+                        .OrderBy(p => p.FechaPago)
+                        .FirstOrDefaultAsync();
+
+                    // Si no hay pago de matrícula, no hay mora (no está inscrito oficialmente)
+                    if (pagoMatricula == null)
+                        continue;
+
+                    // Calcular meses transcurridos desde el pago de matrícula
+                    // Mes 1 = mes del pago de matrícula, Mes 2 = siguiente mes, etc.
+                    int mesesTranscurridos = ((hoy.Year - pagoMatricula.FechaPago.Year) * 12) +
+                                            (hoy.Month - pagoMatricula.FechaPago.Month) + 1;
+
+                    // Materias que DEBERÍAN estar pagadas (meses anteriores al actual)
+                    // Si estamos en el mes 3, deberían estar pagadas las de orden 1 y 2 (no la 3 porque es el mes actual)
+                    int materiasQueDeberianEstarPagadas = mesesTranscurridos - 1;
+                    if (materiasQueDeberianEstarPagadas < 0) materiasQueDeberianEstarPagadas = 0;
+
+                    // Si no hay materias que deberían estar pagadas, no hay mora posible
+                    if (materiasQueDeberianEstarPagadas <= 0)
+                        continue;
+
+                    // Obtener materias del módulo ordenadas
+                    var materiasModulo = await _context.Materias
+                        .Where(m => m.ModuloId == mat.ModuloId && m.Activo)
+                        .OrderBy(m => m.Orden)
+                        .Select(m => m.MateriaId)
+                        .ToListAsync();
+
+                    // Limitar a las materias que existen en el módulo
+                    if (materiasQueDeberianEstarPagadas > materiasModulo.Count)
+                        materiasQueDeberianEstarPagadas = materiasModulo.Count;
+
+                    // Cantidad de materias realmente pagadas (sin importar cuáles específicamente)
+                    var cantidadMateriasPagadas = await _context.Pagos
                         .CountAsync(p => p.MatriculaId == mat.MatriculaId &&
                                         p.TipoPago == "Mensualidad" &&
-                                        p.Estado == "Completado");
-                    var materiasPendientes = totalMaterias - materiasPagadas;
+                                        p.Estado == "Completado" &&
+                                        p.MateriaId.HasValue);
 
-                    // Estimado: usar el monto final de la matrícula como base
-                    if (materiasPendientes > 0)
+                    // Materias en mora = materias que deberían estar pagadas - materias pagadas
+                    var materiasEnMora = materiasQueDeberianEstarPagadas - cantidadMateriasPagadas;
+                    if (materiasEnMora < 0) materiasEnMora = 0;
+
+                    if (materiasEnMora > 0)
                     {
-                        pagosPendientesEstimado += mat.MontoFinal * materiasPendientes;
+                        estudiantesEnMora++;
+                        // Estimar monto de mora usando el monto de mensualidad
+                        moraTotal += mat.MontoFinal * materiasEnMora;
                     }
                 }
 
@@ -121,32 +168,12 @@ namespace Sistema.Web.Controllers
                 // Alertas
                 var alertas = new System.Collections.Generic.List<object>();
 
-                // Alerta: Estudiantes con muchas materias pendientes
-                var estudiantesConMora = await _context.Matriculas
-                    .Where(m => m.Estado == "Activa")
-                    .Include(m => m.Estudiante)
-                    .Include(m => m.Modulo)
-                    .ToListAsync();
-
-                int contadorMoraAlta = 0;
-                foreach (var mat in estudiantesConMora)
-                {
-                    var totalMaterias = await _context.Materias.CountAsync(m => m.ModuloId == mat.ModuloId && m.Activo);
-                    var materiasPagadas = await _context.Pagos
-                        .CountAsync(p => p.MatriculaId == mat.MatriculaId &&
-                                        p.TipoPago == "Mensualidad" &&
-                                        p.Estado == "Completado");
-                    if ((totalMaterias - materiasPagadas) >= 2)
-                    {
-                        contadorMoraAlta++;
-                    }
-                }
-
-                if (contadorMoraAlta > 0)
+                // Alerta de mora (calculada arriba con la nueva lógica)
+                if (estudiantesEnMora > 0)
                 {
                     alertas.Add(new {
                         Tipo = "warning",
-                        Mensaje = $"{contadorMoraAlta} estudiantes con 2+ materias pendientes"
+                        Mensaje = $"{estudiantesEnMora} estudiante(s) con materias en mora"
                     });
                 }
 
@@ -196,7 +223,7 @@ namespace Sistema.Web.Controllers
                     {
                         mes = DateTime.Now.ToString("MMMM yyyy"),
                         recaudado = recaudadoMes,
-                        pagosPendientesEstimado = pagosPendientesEstimado,
+                        pagosPendientesEstimado = moraTotal,
                         porTipo = pagosPorTipo,
                         porMetodo = pagosPorMetodo
                     },
@@ -217,6 +244,7 @@ namespace Sistema.Web.Controllers
 
         // GET: api/Reportes/Morosidad
         // Reporte de estudiantes con pagos pendientes (con paginación)
+        // MORA: Solo cuenta materias de meses ANTERIORES no pagadas (basado en Orden de materia)
         [HttpGet("[action]")]
         public async Task<IActionResult> Morosidad(
             [FromQuery] int pagina = 1,
@@ -255,25 +283,61 @@ namespace Sistema.Web.Controllers
                 var matriculasActivas = await query.ToListAsync();
 
                 // Calcular mora para cada matrícula
+                // MORA: Se calcula desde el PAGO DE MATRÍCULA (cuando el estudiante queda inscrito)
                 var estudiantesConMora = new System.Collections.Generic.List<object>();
+                var hoy = DateTime.Now;
 
                 foreach (var mat in matriculasActivas)
                 {
+                    // Obtener el pago de matrícula para esta matrícula
+                    var pagoMatricula = await _context.Pagos
+                        .Where(p => p.MatriculaId == mat.MatriculaId &&
+                                   p.TipoPago == "Matricula" &&
+                                   p.Estado == "Completado")
+                        .OrderBy(p => p.FechaPago)
+                        .FirstOrDefaultAsync();
+
+                    // Si no hay pago de matrícula, no hay mora (no está inscrito oficialmente)
+                    if (pagoMatricula == null)
+                        continue;
+
+                    // Calcular meses transcurridos desde el pago de matrícula
+                    // Mes 1 = mes del pago de matrícula, Mes 2 = siguiente mes, etc.
+                    int mesesTranscurridos = ((hoy.Year - pagoMatricula.FechaPago.Year) * 12) +
+                                            (hoy.Month - pagoMatricula.FechaPago.Month) + 1;
+
+                    // Materias que DEBERÍAN estar pagadas (meses anteriores al actual)
+                    int materiasQueDeberianEstarPagadas = mesesTranscurridos - 1;
+                    if (materiasQueDeberianEstarPagadas < 0) materiasQueDeberianEstarPagadas = 0;
+
+                    // Si no hay materias que deberían estar pagadas, no hay mora posible
+                    if (materiasQueDeberianEstarPagadas <= 0)
+                        continue;
+
+                    // Obtener total de materias del módulo
                     var totalMaterias = await _context.Materias
                         .CountAsync(m => m.ModuloId == mat.ModuloId && m.Activo);
 
-                    var materiasPagadas = await _context.Pagos
+                    // Limitar a las materias que existen en el módulo
+                    if (materiasQueDeberianEstarPagadas > totalMaterias)
+                        materiasQueDeberianEstarPagadas = totalMaterias;
+
+                    // Cantidad de materias realmente pagadas (sin importar cuáles específicamente)
+                    var cantidadMateriasPagadas = await _context.Pagos
                         .CountAsync(p => p.MatriculaId == mat.MatriculaId &&
                                         p.TipoPago == "Mensualidad" &&
-                                        p.Estado == "Completado");
+                                        p.Estado == "Completado" &&
+                                        p.MateriaId.HasValue);
 
-                    var materiasPendientes = totalMaterias - materiasPagadas;
+                    // Materias en mora = materias que deberían estar pagadas - materias pagadas
+                    var materiasEnMora = materiasQueDeberianEstarPagadas - cantidadMateriasPagadas;
+                    if (materiasEnMora < 0) materiasEnMora = 0;
 
-                    if (materiasPendientes > 0)
+                    if (materiasEnMora > 0)
                     {
-                        // Calcular severidad
-                        string sev = materiasPendientes == 1 ? "leve" :
-                                    materiasPendientes <= 3 ? "moderada" : "grave";
+                        // Calcular severidad basada en cantidad de materias en mora
+                        string sev = materiasEnMora == 1 ? "leve" :
+                                    materiasEnMora <= 3 ? "moderada" : "grave";
 
                         // Filtro de severidad
                         if (!string.IsNullOrEmpty(severidad) && sev != severidad.ToLower())
@@ -281,8 +345,8 @@ namespace Sistema.Web.Controllers
                             continue;
                         }
 
-                        // Estimar monto (simplificado: usar MontoFinal de matrícula como base)
-                        decimal montoPendiente = mat.MontoFinal * materiasPendientes;
+                        // Estimar monto de mora usando el monto de mensualidad
+                        decimal montoPendiente = mat.MontoFinal * materiasEnMora;
 
                         estudiantesConMora.Add(new
                         {
@@ -294,7 +358,11 @@ namespace Sistema.Web.Controllers
                             moduloNombre = mat.Modulo.Nombre,
                             redNombre = mat.Estudiante.Red?.Nombre ?? "Sin Red",
                             esInterno = mat.Estudiante.EsInterno,
-                            materiasPendientes = materiasPendientes,
+                            fechaPagoMatricula = pagoMatricula.FechaPago,
+                            mesesTranscurridos = mesesTranscurridos,
+                            materiasEnMora = materiasEnMora,
+                            materiasPagadas = cantidadMateriasPagadas,
+                            materiasQueDeberianEstarPagadas = materiasQueDeberianEstarPagadas,
                             totalMaterias = totalMaterias,
                             montoPendiente = montoPendiente,
                             severidad = sev
@@ -389,28 +457,55 @@ namespace Sistema.Web.Controllers
                         ? Math.Round((decimal)completadas / totalMatriculas * 100, 1)
                         : 0;
 
-                    // Calcular morosidad
+                    // Calcular morosidad desde el PAGO DE MATRÍCULA
                     int estudiantesConMora = 0;
                     decimal montoPendiente = 0;
+                    var hoyRed = DateTime.Now;
 
                     var matriculasActivas = matriculasRed.Where(m => m.Estado == "Activa").ToList();
 
                     foreach (var mat in matriculasActivas)
                     {
-                        var totalMaterias = await _context.Materias
+                        // Obtener el pago de matrícula
+                        var pagoMatricula = await _context.Pagos
+                            .Where(p => p.MatriculaId == mat.MatriculaId &&
+                                       p.TipoPago == "Matricula" &&
+                                       p.Estado == "Completado")
+                            .OrderBy(p => p.FechaPago)
+                            .FirstOrDefaultAsync();
+
+                        // Si no hay pago de matrícula, no hay mora
+                        if (pagoMatricula == null) continue;
+
+                        // Calcular meses transcurridos desde el pago de matrícula
+                        int mesesTranscurridos = ((hoyRed.Year - pagoMatricula.FechaPago.Year) * 12) +
+                                                (hoyRed.Month - pagoMatricula.FechaPago.Month) + 1;
+
+                        // Materias que DEBERÍAN estar pagadas (meses anteriores al actual)
+                        int materiasQueDeberianEstarPagadas = mesesTranscurridos - 1;
+                        if (materiasQueDeberianEstarPagadas <= 0) continue;
+
+                        // Obtener total de materias del módulo
+                        var totalMateriasModulo = await _context.Materias
                             .CountAsync(m => m.ModuloId == mat.ModuloId && m.Activo);
 
-                        var materiasPagadas = await _context.Pagos
+                        if (materiasQueDeberianEstarPagadas > totalMateriasModulo)
+                            materiasQueDeberianEstarPagadas = totalMateriasModulo;
+
+                        // Cantidad de materias realmente pagadas
+                        var cantidadPagadas = await _context.Pagos
                             .CountAsync(p => p.MatriculaId == mat.MatriculaId &&
                                             p.TipoPago == "Mensualidad" &&
-                                            p.Estado == "Completado");
+                                            p.Estado == "Completado" &&
+                                            p.MateriaId.HasValue);
 
-                        var materiasPendientes = totalMaterias - materiasPagadas;
+                        var materiasEnMora = materiasQueDeberianEstarPagadas - cantidadPagadas;
+                        if (materiasEnMora < 0) materiasEnMora = 0;
 
-                        if (materiasPendientes > 0)
+                        if (materiasEnMora > 0)
                         {
                             estudiantesConMora++;
-                            montoPendiente += mat.MontoFinal * materiasPendientes;
+                            montoPendiente += mat.MontoFinal * materiasEnMora;
                         }
                     }
 
@@ -451,17 +546,48 @@ namespace Sistema.Web.Controllers
                         .ToListAsync();
 
                     int morasinRed = 0;
+                    decimal montoPendienteSinRed = 0;
+                    var hoySinRed = DateTime.Now;
+
                     foreach (var mat in matriculasSinRed)
                     {
-                        var totalMaterias = await _context.Materias
+                        // Obtener el pago de matrícula
+                        var pagoMatricula = await _context.Pagos
+                            .Where(p => p.MatriculaId == mat.MatriculaId &&
+                                       p.TipoPago == "Matricula" &&
+                                       p.Estado == "Completado")
+                            .OrderBy(p => p.FechaPago)
+                            .FirstOrDefaultAsync();
+
+                        // Si no hay pago de matrícula, no hay mora
+                        if (pagoMatricula == null) continue;
+
+                        // Calcular meses transcurridos desde el pago de matrícula
+                        int mesesTranscurridos = ((hoySinRed.Year - pagoMatricula.FechaPago.Year) * 12) +
+                                                (hoySinRed.Month - pagoMatricula.FechaPago.Month) + 1;
+
+                        int materiasQueDeberianEstarPagadas = mesesTranscurridos - 1;
+                        if (materiasQueDeberianEstarPagadas <= 0) continue;
+
+                        var totalMateriasModulo = await _context.Materias
                             .CountAsync(m => m.ModuloId == mat.ModuloId && m.Activo);
-                        var materiasPagadas = await _context.Pagos
+
+                        if (materiasQueDeberianEstarPagadas > totalMateriasModulo)
+                            materiasQueDeberianEstarPagadas = totalMateriasModulo;
+
+                        var cantidadPagadas = await _context.Pagos
                             .CountAsync(p => p.MatriculaId == mat.MatriculaId &&
                                             p.TipoPago == "Mensualidad" &&
-                                            p.Estado == "Completado");
-                        if ((totalMaterias - materiasPagadas) > 0)
+                                            p.Estado == "Completado" &&
+                                            p.MateriaId.HasValue);
+
+                        var materiasEnMora = materiasQueDeberianEstarPagadas - cantidadPagadas;
+                        if (materiasEnMora < 0) materiasEnMora = 0;
+
+                        if (materiasEnMora > 0)
                         {
                             morasinRed++;
+                            montoPendienteSinRed += mat.MontoFinal * materiasEnMora;
                         }
                     }
 
@@ -481,7 +607,7 @@ namespace Sistema.Web.Controllers
                         tasaMorosidad = matriculasSinRed.Count > 0
                             ? Math.Round((decimal)morasinRed / matriculasSinRed.Count * 100, 1)
                             : 0,
-                        montoPendiente = 0m
+                        montoPendiente = montoPendienteSinRed
                     });
                 }
 

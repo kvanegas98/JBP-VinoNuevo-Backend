@@ -37,7 +37,7 @@ namespace Sistema.Web.Controllers
             var materias = await query
                 .OrderBy(m => m.Modulo.AnioLectivoId)
                 .ThenBy(m => m.Modulo.Numero)
-                .ThenBy(m => m.Nombre)
+                .ThenBy(m => m.Orden)
                 .Select(m => new
                 {
                     m.MateriaId,
@@ -46,6 +46,7 @@ namespace Sistema.Web.Controllers
                     ModuloNombre = m.Modulo.Nombre,
                     AnioLectivoId = m.Modulo.AnioLectivoId,
                     AnioLectivoNombre = m.Modulo.AnioLectivo.Nombre,
+                    m.Orden,
                     m.Activo
                 })
                 .ToListAsync();
@@ -80,7 +81,7 @@ namespace Sistema.Web.Controllers
         {
             var materias = await _context.Materias
                 .Where(m => m.Activo && m.ModuloId == moduloId)
-                .OrderBy(m => m.Nombre)
+                .OrderBy(m => m.Orden)
                 .Select(m => new SelectViewModel
                 {
                     Id = m.MateriaId,
@@ -107,6 +108,7 @@ namespace Sistema.Web.Controllers
                     ModuloNombre = m.Modulo.Nombre,
                     AnioLectivoId = m.Modulo.AnioLectivoId,
                     AnioLectivoNombre = m.Modulo.AnioLectivo.Nombre,
+                    m.Orden,
                     m.Activo
                 })
                 .FirstOrDefaultAsync();
@@ -128,10 +130,21 @@ namespace Sistema.Web.Controllers
                 return BadRequest(ModelState);
             }
 
+            // Si no se especifica orden, asignar el siguiente disponible en el módulo
+            int orden = model.Orden;
+            if (orden <= 0)
+            {
+                var maxOrden = await _context.Materias
+                    .Where(m => m.ModuloId == model.ModuloId)
+                    .MaxAsync(m => (int?)m.Orden) ?? 0;
+                orden = maxOrden + 1;
+            }
+
             var materia = new Materia
             {
                 Nombre = model.Nombre,
                 ModuloId = model.ModuloId,
+                Orden = orden,
                 Activo = true
             };
 
@@ -159,6 +172,7 @@ namespace Sistema.Web.Controllers
 
             materia.Nombre = model.Nombre;
             materia.ModuloId = model.ModuloId;
+            materia.Orden = model.Orden > 0 ? model.Orden : materia.Orden;
             await _context.SaveChangesAsync();
 
             return Ok(materia);

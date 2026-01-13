@@ -211,9 +211,10 @@ namespace Sistema.Web.Controllers
 
             bool soloLectura = matricula.Estado == "Completada";
 
-            // Obtener materias del módulo
+            // Obtener materias del módulo ordenadas por Orden
             var materias = await _context.Materias
                 .Where(mat => mat.ModuloId == matricula.ModuloId && mat.Activo)
+                .OrderBy(mat => mat.Orden)
                 .ToListAsync();
 
             // Obtener pagos de mensualidad existentes para esta matrícula
@@ -280,6 +281,7 @@ namespace Sistema.Web.Controllers
             {
                 mat.MateriaId,
                 mat.Nombre,
+                mat.Orden,
                 Pagado = esBecado100 || pagosExistentes.Contains(mat.MateriaId),
                 PagadoAutomaticamente = esBecado100,
                 MontoBase = montoBase,
@@ -828,6 +830,27 @@ namespace Sistema.Web.Controllers
             {
                 pago.Matricula.Estado = "Pendiente";
             }
+            // Si es pago de mensualidad y la matrícula estaba Completada, verificar si debe volver a Activa
+            else if (pago.TipoPago == "Mensualidad" && pago.Matricula.Estado == "Completada")
+            {
+                // Contar materias del módulo
+                var totalMaterias = await _context.Materias
+                    .CountAsync(m => m.ModuloId == pago.Matricula.ModuloId && m.Activo);
+
+                // Contar pagos de mensualidad completados (excluyendo el que se está anulando)
+                var materiasPagadas = await _context.Pagos
+                    .CountAsync(p => p.MatriculaId == pago.MatriculaId &&
+                                    p.TipoPago == "Mensualidad" &&
+                                    p.Estado == "Completado" &&
+                                    p.PagoId != pago.PagoId &&
+                                    p.MateriaId.HasValue);
+
+                // Si quedan materias pendientes, cambiar estado a Activa
+                if (materiasPagadas < totalMaterias)
+                {
+                    pago.Matricula.Estado = "Activa";
+                }
+            }
 
             await _context.SaveChangesAsync();
 
@@ -836,7 +859,7 @@ namespace Sistema.Web.Controllers
                 pagoId = pago.PagoId,
                 codigo = pago.Codigo,
                 estado = pago.Estado,
-                estadoMatricula = pago.TipoPago == "Matricula" ? pago.Matricula.Estado : null,
+                estadoMatricula = pago.Matricula.Estado,
                 message = "Pago anulado exitosamente"
             });
         }

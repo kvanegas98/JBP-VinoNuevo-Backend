@@ -11,7 +11,13 @@ namespace Sistema.Datos.Mapping.Instituto
             builder.ToTable("nota")
                 .HasKey(n => n.NotaId);
 
-            builder.Property(n => n.Calificacion)
+            builder.Property(n => n.Nota1)
+                .HasColumnType("decimal(5,2)");
+
+            builder.Property(n => n.Nota2)
+                .HasColumnType("decimal(5,2)");
+
+            builder.Property(n => n.Promedio)
                 .HasColumnType("decimal(5,2)");
 
             builder.Property(n => n.Observaciones)
