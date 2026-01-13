@@ -787,5 +787,428 @@ namespace Sistema.Web.Controllers
                 });
             }
         }
+
+        // GET: api/Reportes/Academico
+        // Reporte académico: promedios, aprobación, rendimiento por módulo/materia/red
+        [HttpGet("[action]")]
+        public async Task<IActionResult> Academico(
+            [FromQuery] int? anioLectivoId = null,
+            [FromQuery] int? moduloId = null,
+            [FromQuery] int? materiaId = null,
+            [FromQuery] int? redId = null,
+            [FromQuery] bool? esInterno = null)
+        {
+            try
+            {
+                // Si no se especifica año, tomar el más reciente
+                if (!anioLectivoId.HasValue)
+                {
+                    var ultimoAnio = await _context.AniosLectivos
+                        .OrderByDescending(a => a.AnioLectivoId)
+                        .FirstOrDefaultAsync();
+                    anioLectivoId = ultimoAnio?.AnioLectivoId;
+                }
+
+                // Consulta base de notas
+                var queryNotas = _context.Notas
+                    .Include(n => n.Matricula)
+                        .ThenInclude(m => m.Estudiante)
+                            .ThenInclude(e => e.Red)
+                    .Include(n => n.Matricula)
+                        .ThenInclude(m => m.Modulo)
+                            .ThenInclude(mod => mod.AnioLectivo)
+                    .Include(n => n.Materia)
+                    .AsQueryable();
+
+                // Filtrar por año lectivo solo si se especificó o encontró uno
+                if (anioLectivoId.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.Matricula.Modulo.AnioLectivoId == anioLectivoId.Value);
+                }
+
+                // Filtros
+                if (moduloId.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.Matricula.ModuloId == moduloId.Value);
+                }
+
+                if (materiaId.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.MateriaId == materiaId.Value);
+                }
+
+                if (redId.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.Matricula.Estudiante.RedId == redId.Value);
+                }
+
+                if (esInterno.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.Matricula.Estudiante.EsInterno == esInterno.Value);
+                }
+
+                var todasLasNotas = await queryNotas.ToListAsync();
+
+                if (!todasLasNotas.Any())
+                {
+                    return Ok(new
+                    {
+                        mensaje = "No hay notas registradas con los filtros seleccionados",
+                        general = new { promedioGeneral = 0, totalNotas = 0, aprobados = 0, reprobados = 0 },
+                        porModulo = new object[] { },
+                        porMateria = new object[] { },
+                        porRed = new object[] { },
+                        comparativoInternoExterno = new { internos = new { }, externos = new { } },
+                        topMejores = new object[] { },
+                        topMenores = new object[] { }
+                    });
+                }
+
+                // ========== MÉTRICAS GENERALES ==========
+                var promedioGeneral = Math.Round(todasLasNotas.Average(n => n.Promedio), 2);
+                var totalNotas = todasLasNotas.Count;
+                var aprobados = todasLasNotas.Count(n => n.Promedio >= 70);
+                var reprobados = totalNotas - aprobados;
+                var porcentajeAprobacion = Math.Round((decimal)aprobados / totalNotas * 100, 1);
+
+                // ========== RENDIMIENTO POR MÓDULO ==========
+                var porModulo = todasLasNotas
+                    .GroupBy(n => new { n.Matricula.ModuloId, n.Matricula.Modulo.Nombre })
+                    .Select(g => new
+                    {
+                        moduloId = g.Key.ModuloId,
+                        moduloNombre = g.Key.Nombre,
+                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        totalNotas = g.Count(),
+                        aprobados = g.Count(n => n.Promedio >= 70),
+                        reprobados = g.Count(n => n.Promedio < 70),
+                        porcentajeAprobacion = Math.Round((decimal)g.Count(n => n.Promedio >= 70) / g.Count() * 100, 1)
+                    })
+                    .OrderByDescending(m => m.promedio)
+                    .ToList();
+
+                // ========== RENDIMIENTO POR MATERIA ==========
+                var porMateria = todasLasNotas
+                    .GroupBy(n => new { n.MateriaId, n.Materia.Nombre, n.Materia.Orden })
+                    .Select(g => new
+                    {
+                        materiaId = g.Key.MateriaId,
+                        materiaNombre = g.Key.Nombre,
+                        orden = g.Key.Orden,
+                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        totalNotas = g.Count(),
+                        aprobados = g.Count(n => n.Promedio >= 70),
+                        reprobados = g.Count(n => n.Promedio < 70),
+                        porcentajeAprobacion = Math.Round((decimal)g.Count(n => n.Promedio >= 70) / g.Count() * 100, 1),
+                        promedioNota1 = Math.Round(g.Average(n => n.Nota1), 2),
+                        promedioNota2 = Math.Round(g.Average(n => n.Nota2), 2)
+                    })
+                    .OrderBy(m => m.orden)
+                    .ToList();
+
+                // ========== RENDIMIENTO POR RED ==========
+                var porRed = todasLasNotas
+                    .GroupBy(n => new { RedId = n.Matricula.Estudiante.RedId, RedNombre = n.Matricula.Estudiante.Red?.Nombre ?? "Sin Red" })
+                    .Select(g => new
+                    {
+                        redId = g.Key.RedId,
+                        redNombre = g.Key.RedNombre,
+                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        totalNotas = g.Count(),
+                        aprobados = g.Count(n => n.Promedio >= 70),
+                        reprobados = g.Count(n => n.Promedio < 70),
+                        porcentajeAprobacion = Math.Round((decimal)g.Count(n => n.Promedio >= 70) / g.Count() * 100, 1)
+                    })
+                    .OrderByDescending(r => r.promedio)
+                    .ToList();
+
+                // ========== COMPARATIVO INTERNOS VS EXTERNOS ==========
+                var notasInternos = todasLasNotas.Where(n => n.Matricula.Estudiante.EsInterno).ToList();
+                var notasExternos = todasLasNotas.Where(n => !n.Matricula.Estudiante.EsInterno).ToList();
+
+                var comparativoInternoExterno = new
+                {
+                    internos = new
+                    {
+                        totalNotas = notasInternos.Count,
+                        promedio = notasInternos.Any() ? Math.Round(notasInternos.Average(n => n.Promedio), 2) : 0,
+                        aprobados = notasInternos.Count(n => n.Promedio >= 70),
+                        reprobados = notasInternos.Count(n => n.Promedio < 70),
+                        porcentajeAprobacion = notasInternos.Any()
+                            ? Math.Round((decimal)notasInternos.Count(n => n.Promedio >= 70) / notasInternos.Count * 100, 1)
+                            : 0
+                    },
+                    externos = new
+                    {
+                        totalNotas = notasExternos.Count,
+                        promedio = notasExternos.Any() ? Math.Round(notasExternos.Average(n => n.Promedio), 2) : 0,
+                        aprobados = notasExternos.Count(n => n.Promedio >= 70),
+                        reprobados = notasExternos.Count(n => n.Promedio < 70),
+                        porcentajeAprobacion = notasExternos.Any()
+                            ? Math.Round((decimal)notasExternos.Count(n => n.Promedio >= 70) / notasExternos.Count * 100, 1)
+                            : 0
+                    }
+                };
+
+                // ========== TOP 10 MEJORES ESTUDIANTES ==========
+                var promediosPorEstudiante = todasLasNotas
+                    .GroupBy(n => new {
+                        n.Matricula.EstudianteId,
+                        n.Matricula.Estudiante.Codigo,
+                        n.Matricula.Estudiante.NombreCompleto,
+                        n.Matricula.Estudiante.EsInterno,
+                        RedNombre = n.Matricula.Estudiante.Red?.Nombre ?? "Sin Red"
+                    })
+                    .Select(g => new
+                    {
+                        estudianteId = g.Key.EstudianteId,
+                        estudianteCodigo = g.Key.Codigo,
+                        estudianteNombre = g.Key.NombreCompleto,
+                        esInterno = g.Key.EsInterno,
+                        redNombre = g.Key.RedNombre,
+                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        materiasEvaluadas = g.Count(),
+                        materiasAprobadas = g.Count(n => n.Promedio >= 70)
+                    })
+                    .ToList();
+
+                var topMejores = promediosPorEstudiante
+                    .OrderByDescending(e => e.promedio)
+                    .ThenByDescending(e => e.materiasAprobadas)
+                    .Take(10)
+                    .ToList();
+
+                var topMenores = promediosPorEstudiante
+                    .OrderBy(e => e.promedio)
+                    .Take(10)
+                    .ToList();
+
+                return Ok(new
+                {
+                    filtrosAplicados = new
+                    {
+                        anioLectivoId = anioLectivoId,
+                        moduloId = moduloId,
+                        materiaId = materiaId,
+                        redId = redId,
+                        esInterno = esInterno
+                    },
+                    general = new
+                    {
+                        promedioGeneral = promedioGeneral,
+                        totalNotas = totalNotas,
+                        aprobados = aprobados,
+                        reprobados = reprobados,
+                        porcentajeAprobacion = porcentajeAprobacion,
+                        porcentajeReprobacion = 100 - porcentajeAprobacion
+                    },
+                    porModulo = porModulo,
+                    porMateria = porMateria,
+                    porRed = porRed,
+                    comparativoInternoExterno = comparativoInternoExterno,
+                    topMejores = topMejores,
+                    topMenores = topMenores
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Error al generar el reporte académico",
+                    error = ex.Message,
+                    innerError = ex.InnerException?.Message
+                });
+            }
+        }
+
+        // GET: api/Reportes/Ranking
+        // Ranking de estudiantes con paginación y filtros
+        [HttpGet("[action]")]
+        public async Task<IActionResult> Ranking(
+            [FromQuery] int? anioLectivoId = null,
+            [FromQuery] int? moduloId = null,
+            [FromQuery] int? redId = null,
+            [FromQuery] bool? esInterno = null,
+            [FromQuery] bool? soloAprobados = null,
+            [FromQuery] string orden = "desc", // "desc" = mejores primero, "asc" = menores primero
+            [FromQuery] int pagina = 1,
+            [FromQuery] int porPagina = 20)
+        {
+            try
+            {
+                // Si no se especifica año, tomar el más reciente
+                if (!anioLectivoId.HasValue)
+                {
+                    var ultimoAnio = await _context.AniosLectivos
+                        .OrderByDescending(a => a.AnioLectivoId)
+                        .FirstOrDefaultAsync();
+                    anioLectivoId = ultimoAnio?.AnioLectivoId;
+                }
+
+                // Consulta base de notas
+                var queryNotas = _context.Notas
+                    .Include(n => n.Matricula)
+                        .ThenInclude(m => m.Estudiante)
+                            .ThenInclude(e => e.Red)
+                    .Include(n => n.Matricula)
+                        .ThenInclude(m => m.Modulo)
+                            .ThenInclude(mod => mod.AnioLectivo)
+                    .Include(n => n.Materia)
+                    .AsQueryable();
+
+                // Filtrar por año lectivo solo si se especificó o encontró uno
+                if (anioLectivoId.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.Matricula.Modulo.AnioLectivoId == anioLectivoId.Value);
+                }
+
+                // Filtros
+                if (moduloId.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.Matricula.ModuloId == moduloId.Value);
+                }
+
+                if (redId.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.Matricula.Estudiante.RedId == redId.Value);
+                }
+
+                if (esInterno.HasValue)
+                {
+                    queryNotas = queryNotas.Where(n => n.Matricula.Estudiante.EsInterno == esInterno.Value);
+                }
+
+                var todasLasNotas = await queryNotas.ToListAsync();
+
+                if (!todasLasNotas.Any())
+                {
+                    return Ok(new
+                    {
+                        mensaje = "No hay notas registradas con los filtros seleccionados",
+                        total = 0,
+                        pagina = pagina,
+                        porPagina = porPagina,
+                        totalPaginas = 0,
+                        datos = new object[] { }
+                    });
+                }
+
+                // Agrupar por estudiante y calcular promedios
+                var rankingCompleto = todasLasNotas
+                    .GroupBy(n => new {
+                        n.Matricula.EstudianteId,
+                        n.Matricula.Estudiante.Codigo,
+                        n.Matricula.Estudiante.NombreCompleto,
+                        n.Matricula.Estudiante.EsInterno,
+                        RedId = n.Matricula.Estudiante.RedId,
+                        RedNombre = n.Matricula.Estudiante.Red?.Nombre ?? "Sin Red",
+                        ModuloNombre = n.Matricula.Modulo.Nombre
+                    })
+                    .Select(g => new
+                    {
+                        estudianteId = g.Key.EstudianteId,
+                        estudianteCodigo = g.Key.Codigo,
+                        estudianteNombre = g.Key.NombreCompleto,
+                        esInterno = g.Key.EsInterno,
+                        redId = g.Key.RedId,
+                        redNombre = g.Key.RedNombre,
+                        moduloNombre = g.Key.ModuloNombre,
+                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        materiasEvaluadas = g.Count(),
+                        materiasAprobadas = g.Count(n => n.Promedio >= 70),
+                        materiasReprobadas = g.Count(n => n.Promedio < 70),
+                        porcentajeAprobacion = Math.Round((decimal)g.Count(n => n.Promedio >= 70) / g.Count() * 100, 1),
+                        promedioNota1 = Math.Round(g.Average(n => n.Nota1), 2),
+                        promedioNota2 = Math.Round(g.Average(n => n.Nota2), 2),
+                        notaMasAlta = Math.Round(g.Max(n => n.Promedio), 2),
+                        notaMasBaja = Math.Round(g.Min(n => n.Promedio), 2),
+                        aprobado = g.Average(n => n.Promedio) >= 70
+                    })
+                    .ToList();
+
+                // Filtro de aprobados
+                if (soloAprobados.HasValue)
+                {
+                    rankingCompleto = rankingCompleto.Where(e => e.aprobado == soloAprobados.Value).ToList();
+                }
+
+                // Ordenar
+                var rankingOrdenado = orden?.ToLower() == "asc"
+                    ? rankingCompleto.OrderBy(e => e.promedio).ThenBy(e => e.materiasAprobadas).ToList()
+                    : rankingCompleto.OrderByDescending(e => e.promedio).ThenByDescending(e => e.materiasAprobadas).ToList();
+
+                // Agregar posición en ranking
+                var rankingConPosicion = rankingOrdenado
+                    .Select((e, index) => new
+                    {
+                        posicion = index + 1,
+                        e.estudianteId,
+                        e.estudianteCodigo,
+                        e.estudianteNombre,
+                        e.esInterno,
+                        e.redId,
+                        e.redNombre,
+                        e.moduloNombre,
+                        e.promedio,
+                        e.materiasEvaluadas,
+                        e.materiasAprobadas,
+                        e.materiasReprobadas,
+                        e.porcentajeAprobacion,
+                        e.promedioNota1,
+                        e.promedioNota2,
+                        e.notaMasAlta,
+                        e.notaMasBaja,
+                        e.aprobado
+                    })
+                    .ToList();
+
+                // Paginación
+                var total = rankingConPosicion.Count;
+                var datosPaginados = rankingConPosicion
+                    .Skip((pagina - 1) * porPagina)
+                    .Take(porPagina)
+                    .ToList();
+
+                // Resumen
+                var promedioGeneral = rankingCompleto.Any() ? Math.Round(rankingCompleto.Average(e => e.promedio), 2) : 0;
+                var totalAprobados = rankingCompleto.Count(e => e.aprobado);
+                var totalReprobados = rankingCompleto.Count(e => !e.aprobado);
+
+                return Ok(new
+                {
+                    filtrosAplicados = new
+                    {
+                        anioLectivoId = anioLectivoId,
+                        moduloId = moduloId,
+                        redId = redId,
+                        esInterno = esInterno,
+                        soloAprobados = soloAprobados,
+                        orden = orden
+                    },
+                    resumen = new
+                    {
+                        totalEstudiantes = total,
+                        promedioGeneral = promedioGeneral,
+                        aprobados = totalAprobados,
+                        reprobados = totalReprobados,
+                        porcentajeAprobacion = total > 0 ? Math.Round((decimal)totalAprobados / total * 100, 1) : 0
+                    },
+                    total = total,
+                    pagina = pagina,
+                    porPagina = porPagina,
+                    totalPaginas = (int)Math.Ceiling((double)total / porPagina),
+                    datos = datosPaginados
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Error al generar el ranking de estudiantes",
+                    error = ex.Message,
+                    innerError = ex.InnerException?.Message
+                });
+            }
+        }
     }
 }
