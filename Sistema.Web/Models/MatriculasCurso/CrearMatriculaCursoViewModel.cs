@@ -1,14 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Sistema.Web.Models.Matriculas
+namespace Sistema.Web.Models.MatriculasCurso
 {
-    public class CrearMatriculaViewModel
+    public class CrearMatriculaCursoViewModel
     {
         [Required]
         public int EstudianteId { get; set; }
 
         [Required]
-        public int ModuloId { get; set; }
+        public int CursoEspecializadoId { get; set; }
 
         [Required]
         public int ModalidadId { get; set; }

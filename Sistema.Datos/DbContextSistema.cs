@@ -24,12 +24,25 @@ namespace Sistema.Datos
         public DbSet<PrecioMatricula> PreciosMatricula { get; set; }
         public DbSet<PrecioMensualidad> PreciosMensualidad { get; set; }
 
+        // Catálogos - Cursos Especializados
+        public DbSet<CursoEspecializado> CursosEspecializados { get; set; }
+        public DbSet<PrecioMatriculaCurso> PreciosMatriculaCurso { get; set; }
+        public DbSet<PrecioMensualidadCurso> PreciosMensualidadCurso { get; set; }
+
+        // Catálogos - Sistema de Evaluación
+        public DbSet<TipoEvaluacion> TiposEvaluacion { get; set; }
+        public DbSet<ComponenteEvaluacion> ComponenteEvaluacion { get; set; }
+
         // Instituto
         public DbSet<Estudiante> Estudiantes { get; set; }
         public DbSet<EstudianteCargo> EstudianteCargos { get; set; }
         public DbSet<Matricula> Matriculas { get; set; }
         public DbSet<Nota> Notas { get; set; }
         public DbSet<Pago> Pagos { get; set; }
+
+        // Instituto - Cursos Especializados
+        public DbSet<MatriculaCurso> MatriculasCurso { get; set; }
+        public DbSet<PagoCurso> PagosCurso { get; set; }
 
         // Usuarios
         public DbSet<Rol> Roles { get; set; }
@@ -57,6 +70,10 @@ namespace Sistema.Datos
             modelBuilder.ApplyConfiguration(new TipoPagoMap());
             modelBuilder.ApplyConfiguration(new PrecioMatriculaMap());
             modelBuilder.ApplyConfiguration(new PrecioMensualidadMap());
+
+            // Catálogos - Sistema de Evaluación
+            modelBuilder.ApplyConfiguration(new TipoEvaluacionMap());
+            modelBuilder.ApplyConfiguration(new ComponenteEvaluacionMap());
 
             // Instituto
             modelBuilder.ApplyConfiguration(new EstudianteMap());

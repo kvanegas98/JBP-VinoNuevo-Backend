@@ -67,4 +67,35 @@ namespace Sistema.Web.Models.Pagos
         public DateTime FechaInicio { get; set; }
         public DateTime FechaFin { get; set; }
     }
+
+    // ========== CURSOS ESPECIALIZADOS ==========
+
+    // Pago de matrícula de curso
+    public class PagarMatriculaCursoViewModel
+    {
+        [Required]
+        public int MatriculaCursoId { get; set; }
+
+        [StringLength(500)]
+        public string Observaciones { get; set; }
+
+        [Required]
+        public DetallePagoViewModel DetallePago { get; set; }
+    }
+
+    // Pago de mensualidad de curso
+    public class PagarMensualidadCursoViewModel
+    {
+        [Required]
+        public int MatriculaCursoId { get; set; }
+
+        [Required]
+        public int NumeroMensualidad { get; set; }
+
+        [StringLength(500)]
+        public string Observaciones { get; set; }
+
+        [Required]
+        public DetallePagoViewModel DetallePago { get; set; }
+    }
 }

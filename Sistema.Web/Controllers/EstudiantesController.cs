@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -270,23 +271,30 @@ namespace Sistema.Web.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Generar código automático EST-0001, EST-0002, etc.
+            // Generar código automático Año-IVN-Consecutivo (ej: 2026-IVN-0001)
+            var anioActual = DateTime.Now.Year;
+            var prefijo = $"{anioActual}-IVN-";
+
             var ultimoCodigo = await _context.Estudiantes
-                .Where(e => e.Codigo != null)
+                .Where(e => e.Codigo != null && e.Codigo.StartsWith(prefijo))
                 .OrderByDescending(e => e.Codigo)
                 .Select(e => e.Codigo)
                 .FirstOrDefaultAsync();
 
             int siguienteNumero = 1;
-            if (!string.IsNullOrEmpty(ultimoCodigo) && ultimoCodigo.StartsWith("EST-"))
+            if (!string.IsNullOrEmpty(ultimoCodigo))
             {
-                int.TryParse(ultimoCodigo.Substring(4), out siguienteNumero);
-                siguienteNumero++;
+                var partes = ultimoCodigo.Split('-');
+                if (partes.Length == 3)
+                {
+                    int.TryParse(partes[2], out siguienteNumero);
+                    siguienteNumero++;
+                }
             }
 
             var estudiante = new Estudiante
             {
-                Codigo = $"EST-{siguienteNumero:D4}",
+                Codigo = $"{prefijo}{siguienteNumero:D4}",
                 NombreCompleto = model.NombreCompleto,
                 Cedula = model.Cedula,
                 CorreoElectronico = model.CorreoElectronico,

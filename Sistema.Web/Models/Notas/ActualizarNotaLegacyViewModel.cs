@@ -2,13 +2,13 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Sistema.Web.Models.Notas
 {
-    public class CrearNotaViewModel
+    /// <summary>
+    /// ViewModel para actualizar notas del sistema legacy (Nota1, Nota2)
+    /// </summary>
+    public class ActualizarNotaLegacyViewModel
     {
         [Required]
-        public int MatriculaId { get; set; }
-
-        [Required]
-        public int MateriaId { get; set; }
+        public int NotaId { get; set; }
 
         [Required]
         [Range(0, 100, ErrorMessage = "Nota1 debe estar entre 0 y 100")]

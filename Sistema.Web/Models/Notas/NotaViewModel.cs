@@ -5,17 +5,17 @@ namespace Sistema.Web.Models.Notas
     public class NotaViewModel
     {
         public int NotaId { get; set; }
-        public int MatriculaId { get; set; }
+        public int? MatriculaId { get; set; }
         public string MatriculaCodigo { get; set; }
         public int EstudianteId { get; set; }
         public string EstudianteCodigo { get; set; }
         public string EstudianteNombre { get; set; }
-        public int MateriaId { get; set; }
+        public int? MateriaId { get; set; }
         public string MateriaNombre { get; set; }
         public int MateriaOrden { get; set; }
-        public decimal Nota1 { get; set; }
-        public decimal Nota2 { get; set; }
-        public decimal Promedio { get; set; }
+        public int? Nota1 { get; set; }
+        public int? Nota2 { get; set; }
+        public int? Promedio { get; set; }
         public DateTime FechaRegistro { get; set; }
         public string Observaciones { get; set; }
         public int ModuloId { get; set; }

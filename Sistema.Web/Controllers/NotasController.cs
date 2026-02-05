@@ -215,22 +215,32 @@ namespace Sistema.Web.Controllers
                     return BadRequest(new { message = "Ya existe una nota registrada para esta matrícula y materia" });
                 }
 
-                // Verificar que el estudiante haya pagado la materia
-                var pagoMateria = await _context.Pagos
-                    .AnyAsync(p => p.MatriculaId == model.MatriculaId &&
-                                   p.MateriaId == model.MateriaId &&
-                                   p.TipoPago == "Mensualidad" &&
-                                   p.Estado == "Completado");
+                // Verificar pagos o beca
+                // Cargar estudiante para verificar si es becado
+                var matriculaConEstudiante = await _context.Matriculas
+                    .Include(m => m.Estudiante)
+                    .FirstOrDefaultAsync(m => m.MatriculaId == model.MatriculaId);
 
-                if (!pagoMateria)
+                // Si el estudiante NO es becado al 100%, verificar que haya pagado
+                if (!matriculaConEstudiante.Estudiante.EsBecado ||
+                    matriculaConEstudiante.Estudiante.PorcentajeBeca < 100)
                 {
-                    return BadRequest(new { message = $"No se puede registrar la nota. El estudiante no ha pagado la materia '{materia.Nombre}'" });
+                    var pagoMateria = await _context.Pagos
+                        .AnyAsync(p => p.MatriculaId == model.MatriculaId &&
+                                       p.MateriaId == model.MateriaId &&
+                                       p.TipoPago == "Mensualidad" &&
+                                       p.Estado == "Completado");
+
+                    if (!pagoMateria)
+                    {
+                        return BadRequest(new { message = $"No se puede registrar la nota. El estudiante no ha pagado la materia '{materia.Nombre}'" });
+                    }
                 }
 
                 // Calcular el promedio (si Nota2 no existe, promedio = Nota1)
-                decimal nota2Value = model.Nota2 ?? 0;
-                decimal promedio = model.Nota2.HasValue
-                    ? Math.Round((model.Nota1 + nota2Value) / 2, 2)
+                int nota2Value = model.Nota2 ?? 0;
+                int promedio = model.Nota2.HasValue
+                    ? (int)Math.Round((model.Nota1 + nota2Value) / 2.0, 0)
                     : model.Nota1;
 
                 var nota = new Nota
@@ -269,7 +279,7 @@ namespace Sistema.Web.Controllers
 
         // PUT: api/Notas/Actualizar
         [HttpPut("[action]")]
-        public async Task<IActionResult> Actualizar([FromBody] ActualizarNotaViewModel model)
+        public async Task<IActionResult> Actualizar([FromBody] ActualizarNotaLegacyViewModel model)
         {
             try
             {
@@ -297,11 +307,11 @@ namespace Sistema.Web.Controllers
                 }
 
                 // Actualizar notas y recalcular promedio
-                decimal nota2Value = model.Nota2 ?? 0;
+                int nota2Value = model.Nota2 ?? 0;
                 nota.Nota1 = model.Nota1;
                 nota.Nota2 = nota2Value;
                 nota.Promedio = model.Nota2.HasValue
-                    ? Math.Round((model.Nota1 + nota2Value) / 2, 2)
+                    ? (int)Math.Round((model.Nota1 + nota2Value) / 2.0, 0)
                     : model.Nota1;
                 nota.Observaciones = model.Observaciones;
 

@@ -21,7 +21,11 @@ namespace Sistema.Web.Controllers
         // GET: api/Reportes/Dashboard
         // Dashboard principal con métricas generales (optimizado)
         [HttpGet("[action]")]
-        public async Task<IActionResult> Dashboard([FromQuery] int? anioLectivoId = null)
+        public async Task<IActionResult> Dashboard(
+            [FromQuery] int? anioLectivoId = null,
+            [FromQuery] int? redId = null,
+            [FromQuery] bool? esInterno = null,
+            [FromQuery] int? moduloId = null)
         {
             try
             {
@@ -34,37 +38,110 @@ namespace Sistema.Web.Controllers
                     anioLectivoId = ultimoAnio?.AnioLectivoId;
                 }
 
-                // Estudiantes activos
-                var totalEstudiantes = await _context.Estudiantes.CountAsync(e => e.Activo);
-                var estudiantesInternos = await _context.Estudiantes.CountAsync(e => e.Activo && e.EsInterno);
-                var estudiantesExternos = totalEstudiantes - estudiantesInternos;
-                var estudiantesBecados = await _context.Estudiantes.CountAsync(e => e.Activo && e.EsBecado);
+                // Estudiantes activos con filtros
+                var queryEstudiantes = _context.Estudiantes.Where(e => e.Activo);
 
-                // Matrículas
-                var matriculas = await _context.Matriculas
-                    .Where(m => !anioLectivoId.HasValue || m.Modulo.AnioLectivoId == anioLectivoId.Value)
+                if (redId.HasValue)
+                    queryEstudiantes = queryEstudiantes.Where(e => e.RedId == redId.Value);
+
+                if (esInterno.HasValue)
+                    queryEstudiantes = queryEstudiantes.Where(e => e.EsInterno == esInterno.Value);
+
+                var totalEstudiantes = await queryEstudiantes.CountAsync();
+                var estudiantesInternos = await queryEstudiantes.CountAsync(e => e.EsInterno);
+                var estudiantesExternos = totalEstudiantes - estudiantesInternos;
+                var estudiantesBecados = await queryEstudiantes.CountAsync(e => e.EsBecado);
+
+                // Matrículas con filtros
+                var queryMatriculas = _context.Matriculas
+                    .Include(m => m.Estudiante)
+                    .Where(m => !anioLectivoId.HasValue || m.Modulo.AnioLectivoId == anioLectivoId.Value);
+
+                if (redId.HasValue)
+                    queryMatriculas = queryMatriculas.Where(m => m.Estudiante.RedId == redId.Value);
+
+                if (esInterno.HasValue)
+                    queryMatriculas = queryMatriculas.Where(m => m.Estudiante.EsInterno == esInterno.Value);
+
+                if (moduloId.HasValue)
+                    queryMatriculas = queryMatriculas.Where(m => m.ModuloId == moduloId.Value);
+
+                var matriculas = await queryMatriculas
                     .GroupBy(m => m.Estado)
                     .Select(g => new { Estado = g.Key, Cantidad = g.Count() })
                     .ToListAsync();
 
-                var totalMatriculas = matriculas.Sum(m => m.Cantidad);
-                var pendientes = matriculas.FirstOrDefault(m => m.Estado == "Pendiente")?.Cantidad ?? 0;
-                var activas = matriculas.FirstOrDefault(m => m.Estado == "Activa")?.Cantidad ?? 0;
-                var completadas = matriculas.FirstOrDefault(m => m.Estado == "Completada")?.Cantidad ?? 0;
-                var anuladas = matriculas.FirstOrDefault(m => m.Estado == "Anulada")?.Cantidad ?? 0;
+                // Matrículas de cursos especializados con filtros
+                var queryMatriculasCurso = _context.MatriculasCurso
+                    .Include(m => m.Estudiante)
+                    .AsQueryable();
 
-                // Finanzas del mes actual
+                if (redId.HasValue)
+                    queryMatriculasCurso = queryMatriculasCurso.Where(m => m.Estudiante.RedId == redId.Value);
+
+                if (esInterno.HasValue)
+                    queryMatriculasCurso = queryMatriculasCurso.Where(m => m.Estudiante.EsInterno == esInterno.Value);
+
+                var matriculasCurso = await queryMatriculasCurso
+                    .GroupBy(m => m.Estado)
+                    .Select(g => new { Estado = g.Key, Cantidad = g.Count() })
+                    .ToListAsync();
+
+                // Combinar matrículas académicas y de cursos
+                var totalMatriculas = matriculas.Sum(m => m.Cantidad) + matriculasCurso.Sum(m => m.Cantidad);
+                var pendientes = (matriculas.FirstOrDefault(m => m.Estado == "Pendiente")?.Cantidad ?? 0) +
+                                (matriculasCurso.FirstOrDefault(m => m.Estado == "Pendiente")?.Cantidad ?? 0);
+                var activas = (matriculas.FirstOrDefault(m => m.Estado == "Activa")?.Cantidad ?? 0) +
+                             (matriculasCurso.FirstOrDefault(m => m.Estado == "Activa")?.Cantidad ?? 0);
+                var completadas = (matriculas.FirstOrDefault(m => m.Estado == "Completada")?.Cantidad ?? 0) +
+                                 (matriculasCurso.FirstOrDefault(m => m.Estado == "Completada")?.Cantidad ?? 0);
+                var anuladas = (matriculas.FirstOrDefault(m => m.Estado == "Anulada")?.Cantidad ?? 0) +
+                              (matriculasCurso.FirstOrDefault(m => m.Estado == "Anulada")?.Cantidad ?? 0);
+
+                // Finanzas del mes actual con filtros
                 var inicioMes = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
                 var finMes = inicioMes.AddMonths(1).AddSeconds(-1);
 
-                var pagosMes = await _context.Pagos
+                var queryPagos = _context.Pagos
+                    .Include(p => p.Matricula)
+                        .ThenInclude(m => m.Estudiante)
                     .Where(p => p.Estado == "Completado" &&
                                p.FechaPago >= inicioMes &&
-                               p.FechaPago <= finMes)
-                    .ToListAsync();
+                               p.FechaPago <= finMes);
 
-                var recaudadoMes = pagosMes.Sum(p => p.MontoFinal);
-                var pagosPorTipo = pagosMes
+                if (redId.HasValue)
+                    queryPagos = queryPagos.Where(p => p.Matricula.Estudiante.RedId == redId.Value);
+
+                if (esInterno.HasValue)
+                    queryPagos = queryPagos.Where(p => p.Matricula.Estudiante.EsInterno == esInterno.Value);
+
+                if (moduloId.HasValue)
+                    queryPagos = queryPagos.Where(p => p.Matricula.ModuloId == moduloId.Value);
+
+                var pagosMes = await queryPagos.ToListAsync();
+
+                // Pagos de cursos especializados con filtros
+                var queryPagosCurso = _context.PagosCurso
+                    .Include(p => p.MatriculaCurso)
+                        .ThenInclude(m => m.Estudiante)
+                    .Where(p => p.Estado == "Completado" &&
+                               p.FechaPago >= inicioMes &&
+                               p.FechaPago <= finMes);
+
+                if (redId.HasValue)
+                    queryPagosCurso = queryPagosCurso.Where(p => p.MatriculaCurso.Estudiante.RedId == redId.Value);
+
+                if (esInterno.HasValue)
+                    queryPagosCurso = queryPagosCurso.Where(p => p.MatriculaCurso.Estudiante.EsInterno == esInterno.Value);
+
+                var pagosCursoMes = await queryPagosCurso.ToListAsync();
+
+                var recaudadoMes = pagosMes.Sum(p => p.MontoFinal) + pagosCursoMes.Sum(p => p.MontoFinal);
+
+                // Combinar pagos académicos y de cursos para agrupar por tipo
+                var todosLosPagosPorTipo = pagosMes
+                    .Select(p => new { p.TipoPago, p.MontoFinal })
+                    .Concat(pagosCursoMes.Select(p => new { p.TipoPago, p.MontoFinal }))
                     .GroupBy(p => p.TipoPago)
                     .Select(g => new {
                         Tipo = g.Key,
@@ -73,7 +150,10 @@ namespace Sistema.Web.Controllers
                     })
                     .ToList();
 
-                var pagosPorMetodo = pagosMes
+                // Combinar pagos académicos y de cursos para agrupar por método
+                var todosLosPagosPorMetodo = pagosMes
+                    .Select(p => new { p.MetodoPago, p.MontoFinal })
+                    .Concat(pagosCursoMes.Select(p => new { p.MetodoPago, p.MontoFinal }))
                     .GroupBy(p => p.MetodoPago)
                     .Select(g => new {
                         Metodo = g.Key,
@@ -82,14 +162,24 @@ namespace Sistema.Web.Controllers
                     })
                     .ToList();
 
-                // MORA: Solo cuenta materias de meses ANTERIORES no pagadas
+                // MORA: Solo cuenta materias de meses ANTERIORES no pagadas con filtros
                 // El mes 1 comienza desde el PAGO DE MATRÍCULA (cuando el estudiante queda inscrito)
-                var matriculasActivas = await _context.Matriculas
-                    .Where(m => m.Estado == "Activa")
+                var queryMatriculasActivasBase = _context.Matriculas
                     .Include(m => m.Modulo)
                     .Include(m => m.Estudiante)
                     .Include(m => m.CategoriaEstudiante)
-                    .ToListAsync();
+                    .Where(m => m.Estado == "Activa");
+
+                if (redId.HasValue)
+                    queryMatriculasActivasBase = queryMatriculasActivasBase.Where(m => m.Estudiante.RedId == redId.Value);
+
+                if (esInterno.HasValue)
+                    queryMatriculasActivasBase = queryMatriculasActivasBase.Where(m => m.Estudiante.EsInterno == esInterno.Value);
+
+                if (moduloId.HasValue)
+                    queryMatriculasActivasBase = queryMatriculasActivasBase.Where(m => m.ModuloId == moduloId.Value);
+
+                var matriculasActivas = await queryMatriculasActivasBase.ToListAsync();
 
                 decimal moraTotal = 0;
                 int estudiantesEnMora = 0;
@@ -150,6 +240,76 @@ namespace Sistema.Web.Controllers
                         estudiantesEnMora++;
                         // Estimar monto de mora usando el monto de mensualidad
                         moraTotal += mat.MontoFinal * materiasEnMora;
+                    }
+                }
+
+                // MORA DE CURSOS ESPECIALIZADOS
+                var queryMatriculasCursoActivas = _context.MatriculasCurso
+                    .Include(m => m.Estudiante)
+                    .Include(m => m.CursoEspecializado)
+                    .Include(m => m.CategoriaEstudiante)
+                    .Where(m => m.Estado == "Activa");
+
+                if (redId.HasValue)
+                    queryMatriculasCursoActivas = queryMatriculasCursoActivas.Where(m => m.Estudiante.RedId == redId.Value);
+
+                if (esInterno.HasValue)
+                    queryMatriculasCursoActivas = queryMatriculasCursoActivas.Where(m => m.Estudiante.EsInterno == esInterno.Value);
+
+                // Para cursos especializados no filtramos por módulo, pero podríamos filtrar por curso si se necesita
+
+                var matriculasCursoActivas = await queryMatriculasCursoActivas.ToListAsync();
+
+                foreach (var matCurso in matriculasCursoActivas)
+                {
+                    // Obtener el pago de matrícula para este curso
+                    var pagoCursoMatricula = await _context.PagosCurso
+                        .Where(p => p.MatriculaCursoId == matCurso.MatriculaCursoId &&
+                                   p.TipoPago == "Matricula" &&
+                                   p.Estado == "Completado")
+                        .OrderBy(p => p.FechaPago)
+                        .FirstOrDefaultAsync();
+
+                    if (pagoCursoMatricula == null)
+                        continue;
+
+                    // Calcular meses transcurridos
+                    int mesesTranscurridos = ((hoy.Year - pagoCursoMatricula.FechaPago.Year) * 12) +
+                                            (hoy.Month - pagoCursoMatricula.FechaPago.Month) + 1;
+
+                    // Mensualidades que deberían estar pagadas (meses anteriores al actual)
+                    int mensualidadesQueDeberianEstarPagadas = mesesTranscurridos - 1;
+                    if (mensualidadesQueDeberianEstarPagadas < 0) mensualidadesQueDeberianEstarPagadas = 0;
+
+                    if (mensualidadesQueDeberianEstarPagadas <= 0)
+                        continue;
+
+                    // Calcular total de mensualidades del curso basado en fechas
+                    var duracionMeses = ((matCurso.CursoEspecializado.FechaFin.Year - matCurso.CursoEspecializado.FechaInicio.Year) * 12) +
+                                       (matCurso.CursoEspecializado.FechaFin.Month - matCurso.CursoEspecializado.FechaInicio.Month) + 1;
+
+                    if (duracionMeses < 1) duracionMeses = 1;
+
+                    // Limitar a las mensualidades que existen en el curso
+                    if (mensualidadesQueDeberianEstarPagadas > duracionMeses)
+                        mensualidadesQueDeberianEstarPagadas = duracionMeses;
+
+                    // Cantidad de mensualidades realmente pagadas
+                    var cantidadMensualidadesPagadas = await _context.PagosCurso
+                        .CountAsync(p => p.MatriculaCursoId == matCurso.MatriculaCursoId &&
+                                        p.TipoPago == "Mensualidad" &&
+                                        p.Estado == "Completado" &&
+                                        p.NumeroMensualidad.HasValue);
+
+                    // Mensualidades en mora
+                    var mensualidadesEnMora = mensualidadesQueDeberianEstarPagadas - cantidadMensualidadesPagadas;
+                    if (mensualidadesEnMora < 0) mensualidadesEnMora = 0;
+
+                    if (mensualidadesEnMora > 0)
+                    {
+                        estudiantesEnMora++;
+                        // Estimar monto de mora usando el monto de mensualidad
+                        moraTotal += matCurso.MontoFinal * mensualidadesEnMora;
                     }
                 }
 
@@ -224,8 +384,8 @@ namespace Sistema.Web.Controllers
                         mes = DateTime.Now.ToString("MMMM yyyy"),
                         recaudado = recaudadoMes,
                         pagosPendientesEstimado = moraTotal,
-                        porTipo = pagosPorTipo,
-                        porMetodo = pagosPorMetodo
+                        porTipo = todosLosPagosPorTipo,
+                        porMetodo = todosLosPagosPorMetodo
                     },
                     redes = estudiantesAgrupadosPorRed,
                     alertas = alertas
@@ -245,6 +405,7 @@ namespace Sistema.Web.Controllers
         // GET: api/Reportes/Morosidad
         // Reporte de estudiantes con pagos pendientes (con paginación)
         // MORA: Solo cuenta materias de meses ANTERIORES no pagadas (basado en Orden de materia)
+        // INCLUYE: Matrículas regulares Y matrículas de cursos especializados
         [HttpGet("[action]")]
         public async Task<IActionResult> Morosidad(
             [FromQuery] int pagina = 1,
@@ -252,41 +413,41 @@ namespace Sistema.Web.Controllers
             [FromQuery] int? redId = null,
             [FromQuery] bool? esInterno = null,
             [FromQuery] int? moduloId = null,
+            [FromQuery] int? cursoId = null,
             [FromQuery] string severidad = null) // "leve", "moderada", "grave"
         {
             try
             {
-                // Obtener todas las matrículas activas
-                var query = _context.Matriculas
+                var estudiantesConMora = new System.Collections.Generic.List<object>();
+                var hoy = DateTime.Now;
+
+                // ==================== PROCESAR MATRÍCULAS REGULARES ====================
+                var queryMatriculas = _context.Matriculas
                     .Where(m => m.Estado == "Activa")
                     .Include(m => m.Estudiante)
                         .ThenInclude(e => e.Red)
                     .Include(m => m.Modulo)
                     .AsQueryable();
 
-                // Filtros
+                // Filtros para matrículas regulares
                 if (redId.HasValue)
                 {
-                    query = query.Where(m => m.Estudiante.RedId == redId.Value);
+                    queryMatriculas = queryMatriculas.Where(m => m.Estudiante.RedId == redId.Value);
                 }
 
                 if (esInterno.HasValue)
                 {
-                    query = query.Where(m => m.Estudiante.EsInterno == esInterno.Value);
+                    queryMatriculas = queryMatriculas.Where(m => m.Estudiante.EsInterno == esInterno.Value);
                 }
 
                 if (moduloId.HasValue)
                 {
-                    query = query.Where(m => m.ModuloId == moduloId.Value);
+                    queryMatriculas = queryMatriculas.Where(m => m.ModuloId == moduloId.Value);
                 }
 
-                var matriculasActivas = await query.ToListAsync();
+                var matriculasActivas = await queryMatriculas.ToListAsync();
 
-                // Calcular mora para cada matrícula
-                // MORA: Se calcula desde el PAGO DE MATRÍCULA (cuando el estudiante queda inscrito)
-                var estudiantesConMora = new System.Collections.Generic.List<object>();
-                var hoy = DateTime.Now;
-
+                // Calcular mora para cada matrícula regular
                 foreach (var mat in matriculasActivas)
                 {
                     // Obtener el pago de matrícula para esta matrícula
@@ -302,7 +463,6 @@ namespace Sistema.Web.Controllers
                         continue;
 
                     // Calcular meses transcurridos desde el pago de matrícula
-                    // Mes 1 = mes del pago de matrícula, Mes 2 = siguiente mes, etc.
                     int mesesTranscurridos = ((hoy.Year - pagoMatricula.FechaPago.Year) * 12) +
                                             (hoy.Month - pagoMatricula.FechaPago.Month) + 1;
 
@@ -322,40 +482,39 @@ namespace Sistema.Web.Controllers
                     if (materiasQueDeberianEstarPagadas > totalMaterias)
                         materiasQueDeberianEstarPagadas = totalMaterias;
 
-                    // Cantidad de materias realmente pagadas (sin importar cuáles específicamente)
+                    // Cantidad de materias realmente pagadas
                     var cantidadMateriasPagadas = await _context.Pagos
                         .CountAsync(p => p.MatriculaId == mat.MatriculaId &&
                                         p.TipoPago == "Mensualidad" &&
                                         p.Estado == "Completado" &&
                                         p.MateriaId.HasValue);
 
-                    // Materias en mora = materias que deberían estar pagadas - materias pagadas
+                    // Materias en mora
                     var materiasEnMora = materiasQueDeberianEstarPagadas - cantidadMateriasPagadas;
                     if (materiasEnMora < 0) materiasEnMora = 0;
 
                     if (materiasEnMora > 0)
                     {
-                        // Calcular severidad basada en cantidad de materias en mora
+                        // Severidad ajustada: 1=leve, 2=moderada, 3+=grave
                         string sev = materiasEnMora == 1 ? "leve" :
-                                    materiasEnMora <= 3 ? "moderada" : "grave";
+                                    materiasEnMora == 2 ? "moderada" : "grave";
 
-                        // Filtro de severidad
                         if (!string.IsNullOrEmpty(severidad) && sev != severidad.ToLower())
                         {
                             continue;
                         }
 
-                        // Estimar monto de mora usando el monto de mensualidad
                         decimal montoPendiente = mat.MontoFinal * materiasEnMora;
 
                         estudiantesConMora.Add(new
                         {
+                            tipo = "Módulo Académico",
                             estudianteId = mat.EstudianteId,
                             estudianteCodigo = mat.Estudiante.Codigo,
                             estudianteNombre = mat.Estudiante.NombreCompleto,
                             matriculaId = mat.MatriculaId,
                             matriculaCodigo = mat.Codigo,
-                            moduloNombre = mat.Modulo.Nombre,
+                            nombrePrograma = mat.Modulo.Nombre,
                             redNombre = mat.Estudiante.Red?.Nombre ?? "Sin Red",
                             esInterno = mat.Estudiante.EsInterno,
                             fechaPagoMatricula = pagoMatricula.FechaPago,
@@ -364,7 +523,114 @@ namespace Sistema.Web.Controllers
                             materiasPagadas = cantidadMateriasPagadas,
                             materiasQueDeberianEstarPagadas = materiasQueDeberianEstarPagadas,
                             totalMaterias = totalMaterias,
+                            materiasPendientes = $"{cantidadMateriasPagadas}/{totalMaterias}",
                             montoPendiente = montoPendiente,
+                            severidad = sev
+                        });
+                    }
+                }
+
+                // ==================== PROCESAR MATRÍCULAS DE CURSOS ESPECIALIZADOS ====================
+                var queryCursos = _context.MatriculasCurso
+                    .Where(m => m.Estado == "Activa")
+                    .Include(m => m.Estudiante)
+                        .ThenInclude(e => e.Red)
+                    .Include(m => m.CursoEspecializado)
+                    .AsQueryable();
+
+                // Filtros para cursos especializados
+                if (redId.HasValue)
+                {
+                    queryCursos = queryCursos.Where(m => m.Estudiante.RedId == redId.Value);
+                }
+
+                if (esInterno.HasValue)
+                {
+                    queryCursos = queryCursos.Where(m => m.Estudiante.EsInterno == esInterno.Value);
+                }
+
+                if (cursoId.HasValue)
+                {
+                    queryCursos = queryCursos.Where(m => m.CursoEspecializadoId == cursoId.Value);
+                }
+
+                var matriculasCursoActivas = await queryCursos.ToListAsync();
+
+                // Calcular mora para cada matrícula de curso
+                foreach (var mat in matriculasCursoActivas)
+                {
+                    // Obtener el pago de matrícula para esta matrícula de curso
+                    var pagoCursoMatricula = await _context.PagosCurso
+                        .Where(p => p.MatriculaCursoId == mat.MatriculaCursoId &&
+                                   p.TipoPago == "Matricula" &&
+                                   p.Estado == "Completado")
+                        .OrderBy(p => p.FechaPago)
+                        .FirstOrDefaultAsync();
+
+                    if (pagoCursoMatricula == null)
+                        continue;
+
+                    // Calcular meses transcurridos desde el pago de matrícula
+                    int mesesTranscurridos = ((hoy.Year - pagoCursoMatricula.FechaPago.Year) * 12) +
+                                            (hoy.Month - pagoCursoMatricula.FechaPago.Month) + 1;
+
+                    int mensualidadesQueDeberianEstarPagadas = mesesTranscurridos - 1;
+                    if (mensualidadesQueDeberianEstarPagadas < 0) mensualidadesQueDeberianEstarPagadas = 0;
+
+                    if (mensualidadesQueDeberianEstarPagadas <= 0)
+                        continue;
+
+                    // Calcular total de mensualidades del curso
+                    var fechaInicio = mat.CursoEspecializado.FechaInicio;
+                    var fechaFin = mat.CursoEspecializado.FechaFin;
+                    var totalMensualidadesCurso = ((fechaFin.Year - fechaInicio.Year) * 12) + fechaFin.Month - fechaInicio.Month + 1;
+
+                    if (mensualidadesQueDeberianEstarPagadas > totalMensualidadesCurso)
+                        mensualidadesQueDeberianEstarPagadas = totalMensualidadesCurso;
+
+                    // Cantidad de mensualidades realmente pagadas
+                    var cantidadMensualidadesPagadasCurso = await _context.PagosCurso
+                        .CountAsync(p => p.MatriculaCursoId == mat.MatriculaCursoId &&
+                                        p.TipoPago == "Mensualidad" &&
+                                        p.Estado == "Completado" &&
+                                        p.NumeroMensualidad.HasValue);
+
+                    // Mensualidades en mora
+                    var mensualidadesEnMoraCurso = mensualidadesQueDeberianEstarPagadas - cantidadMensualidadesPagadasCurso;
+                    if (mensualidadesEnMoraCurso < 0) mensualidadesEnMoraCurso = 0;
+
+                    if (mensualidadesEnMoraCurso > 0)
+                    {
+                        // Severidad ajustada: 1=leve, 2=moderada, 3+=grave
+                        string sev = mensualidadesEnMoraCurso == 1 ? "leve" :
+                                    mensualidadesEnMoraCurso == 2 ? "moderada" : "grave";
+
+                        if (!string.IsNullOrEmpty(severidad) && sev != severidad.ToLower())
+                        {
+                            continue;
+                        }
+
+                        decimal montoPendienteCurso = mat.MontoFinal * mensualidadesEnMoraCurso;
+
+                        estudiantesConMora.Add(new
+                        {
+                            tipo = "Curso Especializado",
+                            estudianteId = mat.EstudianteId,
+                            estudianteCodigo = mat.Estudiante.Codigo,
+                            estudianteNombre = mat.Estudiante.NombreCompleto,
+                            matriculaId = mat.MatriculaCursoId,
+                            matriculaCodigo = mat.Codigo,
+                            nombrePrograma = mat.CursoEspecializado.Nombre,
+                            redNombre = mat.Estudiante.Red?.Nombre ?? "Sin Red",
+                            esInterno = mat.Estudiante.EsInterno,
+                            fechaPagoMatricula = pagoCursoMatricula.FechaPago,
+                            mesesTranscurridos = mesesTranscurridos,
+                            mensualidadesEnMora = mensualidadesEnMoraCurso,
+                            mensualidadesPagadas = cantidadMensualidadesPagadasCurso,
+                            mensualidadesQueDeberianEstarPagadas = mensualidadesQueDeberianEstarPagadas,
+                            totalMensualidades = totalMensualidadesCurso,
+                            materiasPendientes = $"{cantidadMensualidadesPagadasCurso}/{totalMensualidadesCurso}",
+                            montoPendiente = montoPendienteCurso,
                             severidad = sev
                         });
                     }
@@ -865,7 +1131,7 @@ namespace Sistema.Web.Controllers
                 }
 
                 // ========== MÉTRICAS GENERALES ==========
-                var promedioGeneral = Math.Round(todasLasNotas.Average(n => n.Promedio), 2);
+                var promedioGeneral = Math.Round((decimal?)todasLasNotas.Average(n => n.Promedio) ?? 0, 2);
                 var totalNotas = todasLasNotas.Count;
                 var aprobados = todasLasNotas.Count(n => n.Promedio >= 70);
                 var reprobados = totalNotas - aprobados;
@@ -878,7 +1144,7 @@ namespace Sistema.Web.Controllers
                     {
                         moduloId = g.Key.ModuloId,
                         moduloNombre = g.Key.Nombre,
-                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        promedio = Math.Round((decimal?)g.Average(n => n.Promedio) ?? 0, 2),
                         totalNotas = g.Count(),
                         aprobados = g.Count(n => n.Promedio >= 70),
                         reprobados = g.Count(n => n.Promedio < 70),
@@ -895,13 +1161,13 @@ namespace Sistema.Web.Controllers
                         materiaId = g.Key.MateriaId,
                         materiaNombre = g.Key.Nombre,
                         orden = g.Key.Orden,
-                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        promedio = Math.Round((decimal?)g.Average(n => n.Promedio) ?? 0, 2),
                         totalNotas = g.Count(),
                         aprobados = g.Count(n => n.Promedio >= 70),
                         reprobados = g.Count(n => n.Promedio < 70),
                         porcentajeAprobacion = Math.Round((decimal)g.Count(n => n.Promedio >= 70) / g.Count() * 100, 1),
-                        promedioNota1 = Math.Round(g.Average(n => n.Nota1), 2),
-                        promedioNota2 = Math.Round(g.Average(n => n.Nota2), 2)
+                        promedioNota1 = Math.Round((decimal?)g.Average(n => n.Nota1) ?? 0, 2),
+                        promedioNota2 = Math.Round((decimal?)g.Average(n => n.Nota2) ?? 0, 2)
                     })
                     .OrderBy(m => m.orden)
                     .ToList();
@@ -913,7 +1179,7 @@ namespace Sistema.Web.Controllers
                     {
                         redId = g.Key.RedId,
                         redNombre = g.Key.RedNombre,
-                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        promedio = Math.Round((decimal?)g.Average(n => n.Promedio) ?? 0, 2),
                         totalNotas = g.Count(),
                         aprobados = g.Count(n => n.Promedio >= 70),
                         reprobados = g.Count(n => n.Promedio < 70),
@@ -931,7 +1197,7 @@ namespace Sistema.Web.Controllers
                     internos = new
                     {
                         totalNotas = notasInternos.Count,
-                        promedio = notasInternos.Any() ? Math.Round(notasInternos.Average(n => n.Promedio), 2) : 0,
+                        promedio = notasInternos.Any() ? Math.Round((decimal?)notasInternos.Average(n => n.Promedio) ?? 0, 2) : 0,
                         aprobados = notasInternos.Count(n => n.Promedio >= 70),
                         reprobados = notasInternos.Count(n => n.Promedio < 70),
                         porcentajeAprobacion = notasInternos.Any()
@@ -941,7 +1207,7 @@ namespace Sistema.Web.Controllers
                     externos = new
                     {
                         totalNotas = notasExternos.Count,
-                        promedio = notasExternos.Any() ? Math.Round(notasExternos.Average(n => n.Promedio), 2) : 0,
+                        promedio = notasExternos.Any() ? Math.Round((decimal?)notasExternos.Average(n => n.Promedio) ?? 0, 2) : 0,
                         aprobados = notasExternos.Count(n => n.Promedio >= 70),
                         reprobados = notasExternos.Count(n => n.Promedio < 70),
                         porcentajeAprobacion = notasExternos.Any()
@@ -966,7 +1232,7 @@ namespace Sistema.Web.Controllers
                         estudianteNombre = g.Key.NombreCompleto,
                         esInterno = g.Key.EsInterno,
                         redNombre = g.Key.RedNombre,
-                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        promedio = Math.Round((decimal?)g.Average(n => n.Promedio) ?? 0, 2),
                         materiasEvaluadas = g.Count(),
                         materiasAprobadas = g.Count(n => n.Promedio >= 70)
                     })
@@ -1113,16 +1379,16 @@ namespace Sistema.Web.Controllers
                         redId = g.Key.RedId,
                         redNombre = g.Key.RedNombre,
                         moduloNombre = g.Key.ModuloNombre,
-                        promedio = Math.Round(g.Average(n => n.Promedio), 2),
+                        promedio = Math.Round((decimal?)g.Average(n => n.Promedio) ?? 0, 2),
                         materiasEvaluadas = g.Count(),
                         materiasAprobadas = g.Count(n => n.Promedio >= 70),
                         materiasReprobadas = g.Count(n => n.Promedio < 70),
                         porcentajeAprobacion = Math.Round((decimal)g.Count(n => n.Promedio >= 70) / g.Count() * 100, 1),
-                        promedioNota1 = Math.Round(g.Average(n => n.Nota1), 2),
-                        promedioNota2 = Math.Round(g.Average(n => n.Nota2), 2),
-                        notaMasAlta = Math.Round(g.Max(n => n.Promedio), 2),
-                        notaMasBaja = Math.Round(g.Min(n => n.Promedio), 2),
-                        aprobado = g.Average(n => n.Promedio) >= 70
+                        promedioNota1 = Math.Round((decimal?)g.Average(n => n.Nota1) ?? 0, 2),
+                        promedioNota2 = Math.Round((decimal?)g.Average(n => n.Nota2) ?? 0, 2),
+                        notaMasAlta = Math.Round((decimal?)g.Max(n => n.Promedio) ?? 0, 2),
+                        notaMasBaja = Math.Round((decimal?)g.Min(n => n.Promedio) ?? 0, 2),
+                        aprobado = (g.Average(n => n.Promedio) ?? 0) >= 70
                     })
                     .ToList();
 
@@ -1320,7 +1586,7 @@ namespace Sistema.Web.Controllers
                     decimal? promedioGeneral = null;
                     if (notasEstudiante.Any())
                     {
-                        promedioGeneral = notasEstudiante.Average(n => n.Promedio);
+                        promedioGeneral = (decimal?)notasEstudiante.Average(n => n.Promedio);
                         var materiasReprobadas = notasEstudiante.Count(n => n.Promedio < 70);
 
                         if (promedioGeneral < 60)

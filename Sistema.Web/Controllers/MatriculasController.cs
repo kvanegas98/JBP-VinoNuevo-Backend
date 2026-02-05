@@ -157,6 +157,13 @@ namespace Sistema.Web.Controllers
             // Si el monto es $0 (becado 100%), activar automáticamente sin necesidad de pago
             string estadoInicial = montoFinal == 0 ? "Activa" : "Pendiente";
 
+            // Si está becado 100% y no hay observaciones, agregar observación automática
+            string observaciones = model.Observaciones;
+            if (montoFinal == 0 && string.IsNullOrEmpty(observaciones))
+            {
+                observaciones = "Becado 100%";
+            }
+
             var matricula = new Matricula
             {
                 Codigo = $"{prefijoAnio}{siguienteNumero:D4}",
@@ -168,7 +175,8 @@ namespace Sistema.Web.Controllers
                 MontoMatricula = montoMatricula,
                 DescuentoAplicado = descuento,
                 MontoFinal = montoFinal,
-                Estado = estadoInicial
+                Estado = estadoInicial,
+                Observaciones = observaciones
             };
 
             _context.Matriculas.Add(matricula);

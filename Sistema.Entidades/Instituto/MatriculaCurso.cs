@@ -5,18 +5,18 @@ using Sistema.Entidades.Catalogos;
 
 namespace Sistema.Entidades.Instituto
 {
-    public class Matricula
+    public class MatriculaCurso
     {
-        public int MatriculaId { get; set; }
+        public int MatriculaCursoId { get; set; }
 
         [StringLength(20)]
-        public string Codigo { get; set; } // MAT-2025-0001, MAT-2025-0002, etc.
+        public string Codigo { get; set; } // MCURSO-2026-0001, etc.
 
         [Required]
         public int EstudianteId { get; set; }
 
         [Required]
-        public int ModuloId { get; set; }
+        public int CursoEspecializadoId { get; set; }
 
         [Required]
         public int ModalidadId { get; set; }
@@ -35,15 +35,17 @@ namespace Sistema.Entidades.Instituto
         [StringLength(20)]
         public string Estado { get; set; } // Pendiente, Activa, Completada, Anulada
 
+        public bool Aprobado { get; set; } // Para controlar si ya aprobó el curso
+
         [StringLength(500)]
         public string Observaciones { get; set; }
 
         // Navegación
         public Estudiante Estudiante { get; set; }
-        public Catalogos.Modulo Modulo { get; set; }
+        public CursoEspecializado CursoEspecializado { get; set; }
         public Modalidad Modalidad { get; set; }
         public CategoriaEstudiante CategoriaEstudiante { get; set; }
+        public ICollection<PagoCurso> Pagos { get; set; }
         public ICollection<Nota> Notas { get; set; }
-        public ICollection<Pago> Pagos { get; set; }
     }
 }
