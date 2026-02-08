@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -12,6 +13,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PagosController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -67,7 +69,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Pagos/BuscarEstudiante/{texto}
-        // Busca estudiantes con matrículas pendientes, activas o completadas
+        // Busca estudiantes con matrÃƒÂ­culas pendientes, activas o completadas
         [HttpGet("[action]/{texto}")]
         public async Task<IActionResult> BuscarEstudiante([FromRoute] string texto)
         {
@@ -96,7 +98,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Pagos/MatriculasPendientes/{estudianteId}
-        // Lista matrículas pendientes de pago de matrícula
+        // Lista matrÃƒÂ­culas pendientes de pago de matrÃƒÂ­cula
         [HttpGet("[action]/{estudianteId}")]
         public async Task<IActionResult> MatriculasPendientes([FromRoute] int estudianteId)
         {
@@ -127,7 +129,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Pagos/MatriculasActivas/{estudianteId}
-        // Lista matrículas activas para pagar mensualidades
+        // Lista matrÃƒÂ­culas activas para pagar mensualidades
         [HttpGet("[action]/{estudianteId}")]
         public async Task<IActionResult> MatriculasActivas([FromRoute] int estudianteId)
         {
@@ -158,7 +160,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Pagos/MatriculasCompletadas/{estudianteId}
-        // Lista matrículas completadas (para ver historial)
+        // Lista matrÃƒÂ­culas completadas (para ver historial)
         [HttpGet("[action]/{estudianteId}")]
         public async Task<IActionResult> MatriculasCompletadas([FromRoute] int estudianteId)
         {
@@ -189,7 +191,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Pagos/MateriasParaPago/{matriculaId}
-        // Lista materias del módulo con estado de pago
+        // Lista materias del mÃƒÂ³dulo con estado de pago
         [HttpGet("[action]/{matriculaId}")]
         public async Task<IActionResult> MateriasParaPago([FromRoute] int matriculaId)
         {
@@ -201,23 +203,23 @@ namespace Sistema.Web.Controllers
 
             if (matricula == null)
             {
-                return NotFound(new { message = "Matrícula no encontrada" });
+                return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
             }
 
             if (matricula.Estado != "Activa" && matricula.Estado != "Completada")
             {
-                return BadRequest(new { message = "La matrícula debe estar activa o completada para consultar mensualidades" });
+                return BadRequest(new { message = "La matrÃƒÂ­cula debe estar activa o completada para consultar mensualidades" });
             }
 
             bool soloLectura = matricula.Estado == "Completada";
 
-            // Obtener materias del módulo ordenadas por Orden
+            // Obtener materias del mÃƒÂ³dulo ordenadas por Orden
             var materias = await _context.Materias
                 .Where(mat => mat.ModuloId == matricula.ModuloId && mat.Activo)
                 .OrderBy(mat => mat.Orden)
                 .ToListAsync();
 
-            // Obtener pagos de mensualidad existentes para esta matrícula
+            // Obtener pagos de mensualidad existentes para esta matrÃƒÂ­cula
             var pagosExistentes = await _context.Pagos
                 .Where(p => p.MatriculaId == matriculaId &&
                            p.TipoPago == "Mensualidad" &&
@@ -243,13 +245,13 @@ namespace Sistema.Web.Controllers
                 }
             }
 
-            // Obtener precio de mensualidad según categoría + cargo
+            // Obtener precio de mensualidad segÃƒÂºn categorÃƒÂ­a + cargo
             var precioMensualidad = await _context.PreciosMensualidad
                 .FirstOrDefaultAsync(p => p.CategoriaEstudianteId == matricula.CategoriaEstudianteId
                                        && p.CargoId == cargoId
                                        && p.Activo);
 
-            // Si no encuentra precio específico para el cargo, buscar sin cargo (precio base de la categoría)
+            // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo (precio base de la categorÃƒÂ­a)
             if (precioMensualidad == null && cargoId.HasValue)
             {
                 precioMensualidad = await _context.PreciosMensualidad
@@ -276,7 +278,7 @@ namespace Sistema.Web.Controllers
 
             bool esBecado100 = esBecado && porcentajeBeca >= 100;
 
-            // Si es becado 100%, todas las materias se consideran "pagadas" automáticamente
+            // Si es becado 100%, todas las materias se consideran "pagadas" automÃƒÂ¡ticamente
             var resultado = materias.Select(mat => new
             {
                 mat.MateriaId,
@@ -318,7 +320,7 @@ namespace Sistema.Web.Controllers
         }
 
         // POST: api/Pagos/PagarMatricula
-        // Paga la matrícula y la activa
+        // Paga la matrÃƒÂ­cula y la activa
         [HttpPost("[action]")]
         public async Task<IActionResult> PagarMatricula([FromBody] PagarMatriculaViewModel model)
         {
@@ -336,20 +338,20 @@ namespace Sistema.Web.Controllers
 
                 if (matricula == null)
                 {
-                    return NotFound(new { message = "Matrícula no encontrada" });
+                    return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
                 }
 
                 if (matricula.Estado == "Activa")
                 {
-                    return BadRequest(new { message = "La matrícula ya está pagada y activa" });
+                    return BadRequest(new { message = "La matrÃƒÂ­cula ya estÃƒÂ¡ pagada y activa" });
                 }
 
                 if (matricula.Estado == "Anulada")
                 {
-                    return BadRequest(new { message = "No se puede pagar una matrícula anulada" });
+                    return BadRequest(new { message = "No se puede pagar una matrÃƒÂ­cula anulada" });
                 }
 
-                // Verificar que no exista pago de matrícula previo
+                // Verificar que no exista pago de matrÃƒÂ­cula previo
                 var pagoExistente = await _context.Pagos
                     .FirstOrDefaultAsync(p => p.MatriculaId == model.MatriculaId &&
                                              p.TipoPago == "Matricula" &&
@@ -357,14 +359,14 @@ namespace Sistema.Web.Controllers
 
                 if (pagoExistente != null)
                 {
-                    return BadRequest(new { message = "Ya existe un pago de matrícula para esta inscripción" });
+                    return BadRequest(new { message = "Ya existe un pago de matrÃƒÂ­cula para esta inscripciÃƒÂ³n" });
                 }
 
-                // Si el monto es $0 (becado 100%), no se requiere pago - la matrícula ya está activa
+                // Si el monto es $0 (becado 100%), no se requiere pago - la matrÃƒÂ­cula ya estÃƒÂ¡ activa
                 if (matricula.MontoFinal == 0)
                 {
                     return BadRequest(new {
-                        message = "No se requiere pago para estudiantes becados al 100%. La matrícula ya fue activada automáticamente.",
+                        message = "No se requiere pago para estudiantes becados al 100%. La matrÃƒÂ­cula ya fue activada automÃƒÂ¡ticamente.",
                         esBecado = true,
                         montoFinal = 0
                     });
@@ -381,7 +383,7 @@ namespace Sistema.Web.Controllers
                     return BadRequest(new { message = "El tipo de cambio debe ser mayor a 0" });
                 }
 
-                // Calcular total pagado en USD (redondeado a 2 decimales para evitar problemas de precisión)
+                // Calcular total pagado en USD (redondeado a 2 decimales para evitar problemas de precisiÃƒÂ³n)
                 var detalle = model.DetallePago;
                 decimal totalCordobas = detalle.EfectivoCordobas + detalle.TarjetaCordobas;
                 decimal totalDolares = detalle.EfectivoDolares + detalle.TarjetaDolares;
@@ -399,13 +401,13 @@ namespace Sistema.Web.Controllers
                     });
                 }
 
-                // Calcular vuelto (el usuario puede elegir libremente cómo entregarlo)
+                // Calcular vuelto (el usuario puede elegir libremente cÃƒÂ³mo entregarlo)
                 decimal vuelto = Math.Round(totalPagadoUSD - matricula.MontoFinal, 2);
 
-                // Determinar método de pago (para referencia rápida)
+                // Determinar mÃƒÂ©todo de pago (para referencia rÃƒÂ¡pida)
                 string metodoPago = DeterminarMetodoPago(detalle);
 
-                // Generar código de pago
+                // Generar cÃƒÂ³digo de pago
                 var anioActual = DateTime.Now.Year;
                 var prefijo = $"PAG-{anioActual}-";
                 var ultimoCodigo = await _context.Pagos
@@ -452,7 +454,7 @@ namespace Sistema.Web.Controllers
 
                 _context.Pagos.Add(pago);
 
-                // Activar la matrícula
+                // Activar la matrÃƒÂ­cula
                 matricula.Estado = "Activa";
 
                 await _context.SaveChangesAsync();
@@ -485,7 +487,7 @@ namespace Sistema.Web.Controllers
                     estadoMatricula = matricula.Estado,
                     message = pago.Vuelto > 0
                         ? $"Pago registrado. Vuelto: C${pago.VueltoCordobas:F2} + ${pago.VueltoDolares:F2}"
-                        : "Pago de matrícula registrado y matrícula activada"
+                        : "Pago de matrÃƒÂ­cula registrado y matrÃƒÂ­cula activada"
                 });
             }
             catch (Exception ex)
@@ -521,22 +523,22 @@ namespace Sistema.Web.Controllers
 
                 if (matricula == null)
                 {
-                    return NotFound(new { message = "Matrícula no encontrada" });
+                    return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
                 }
 
                 if (matricula.Estado != "Activa")
                 {
-                    return BadRequest(new { message = "La matrícula debe estar activa para pagar mensualidades" });
+                    return BadRequest(new { message = "La matrÃƒÂ­cula debe estar activa para pagar mensualidades" });
                 }
 
-                // Verificar que la materia existe y pertenece al módulo
+                // Verificar que la materia existe y pertenece al mÃƒÂ³dulo
                 var materia = await _context.Materias
                     .FirstOrDefaultAsync(mat => mat.MateriaId == model.MateriaId &&
                                                 mat.ModuloId == matricula.ModuloId);
 
                 if (materia == null)
                 {
-                    return BadRequest(new { message = "La materia no pertenece al módulo de esta matrícula" });
+                    return BadRequest(new { message = "La materia no pertenece al mÃƒÂ³dulo de esta matrÃƒÂ­cula" });
                 }
 
                 // Verificar que no exista pago previo de esta materia
@@ -562,13 +564,13 @@ namespace Sistema.Web.Controllers
                     cargoNombre = cargo.Cargo.Nombre;
                 }
 
-                // Obtener precio de mensualidad según categoría + cargo
+                // Obtener precio de mensualidad segÃƒÂºn categorÃƒÂ­a + cargo
                 var precioMensualidad = await _context.PreciosMensualidad
                     .FirstOrDefaultAsync(p => p.CategoriaEstudianteId == matricula.CategoriaEstudianteId
                                            && p.CargoId == cargoId
                                            && p.Activo);
 
-                // Si no encuentra precio específico para el cargo, buscar sin cargo (precio base)
+                // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo (precio base)
                 if (precioMensualidad == null && cargoId.HasValue)
                 {
                     precioMensualidad = await _context.PreciosMensualidad
@@ -597,7 +599,7 @@ namespace Sistema.Web.Controllers
                 if (montoFinal == 0)
                 {
                     return BadRequest(new {
-                        message = "No se requiere pago para estudiantes becados al 100%. La materia se considera pagada automáticamente.",
+                        message = "No se requiere pago para estudiantes becados al 100%. La materia se considera pagada automÃƒÂ¡ticamente.",
                         esBecado = true,
                         porcentajeBeca = porcentajeBeca,
                         montoFinal = 0
@@ -615,7 +617,7 @@ namespace Sistema.Web.Controllers
                     return BadRequest(new { message = "El tipo de cambio debe ser mayor a 0" });
                 }
 
-                // Calcular total pagado en USD (redondeado a 2 decimales para evitar problemas de precisión)
+                // Calcular total pagado en USD (redondeado a 2 decimales para evitar problemas de precisiÃƒÂ³n)
                 var detalle = model.DetallePago;
                 decimal totalCordobas = detalle.EfectivoCordobas + detalle.TarjetaCordobas;
                 decimal totalDolares = detalle.EfectivoDolares + detalle.TarjetaDolares;
@@ -633,13 +635,13 @@ namespace Sistema.Web.Controllers
                     });
                 }
 
-                // Calcular vuelto (el usuario puede elegir libremente cómo entregarlo)
+                // Calcular vuelto (el usuario puede elegir libremente cÃƒÂ³mo entregarlo)
                 decimal vuelto = Math.Round(totalPagadoUSD - montoFinal, 2);
 
-                // Determinar método de pago
+                // Determinar mÃƒÂ©todo de pago
                 string metodoPago = DeterminarMetodoPago(detalle);
 
-                // Generar código de pago
+                // Generar cÃƒÂ³digo de pago
                 var anioActual = DateTime.Now.Year;
                 var prefijo = $"PAG-{anioActual}-";
                 var ultimoCodigo = await _context.Pagos
@@ -687,7 +689,7 @@ namespace Sistema.Web.Controllers
                 _context.Pagos.Add(pago);
                 await _context.SaveChangesAsync();
 
-                // Verificar si se completaron todas las materias del módulo
+                // Verificar si se completaron todas las materias del mÃƒÂ³dulo
                 bool matriculaCompletada = false;
                 var totalMateriasModulo = await _context.Materias
                     .CountAsync(m => m.ModuloId == matricula.ModuloId && m.Activo);
@@ -710,7 +712,7 @@ namespace Sistema.Web.Controllers
 
                 if (matriculaCompletada)
                 {
-                    mensaje += ". ¡Felicidades! Se han completado todos los pagos del módulo.";
+                    mensaje += ". Ã‚Â¡Felicidades! Se han completado todos los pagos del mÃƒÂ³dulo.";
                 }
 
                 return Ok(new
@@ -817,7 +819,7 @@ namespace Sistema.Web.Controllers
 
             if (pago.Estado == "Anulado")
             {
-                return BadRequest(new { message = "El pago ya está anulado" });
+                return BadRequest(new { message = "El pago ya estÃƒÂ¡ anulado" });
             }
 
             pago.Estado = "Anulado";
@@ -825,19 +827,19 @@ namespace Sistema.Web.Controllers
                 ? $"ANULADO: {motivo}"
                 : $"{pago.Observaciones} | ANULADO: {motivo}";
 
-            // Si es pago de matrícula, volver la matrícula a Pendiente
+            // Si es pago de matrÃƒÂ­cula, volver la matrÃƒÂ­cula a Pendiente
             if (pago.TipoPago == "Matricula")
             {
                 pago.Matricula.Estado = "Pendiente";
             }
-            // Si es pago de mensualidad y la matrícula estaba Completada, verificar si debe volver a Activa
+            // Si es pago de mensualidad y la matrÃƒÂ­cula estaba Completada, verificar si debe volver a Activa
             else if (pago.TipoPago == "Mensualidad" && pago.Matricula.Estado == "Completada")
             {
-                // Contar materias del módulo
+                // Contar materias del mÃƒÂ³dulo
                 var totalMaterias = await _context.Materias
                     .CountAsync(m => m.ModuloId == pago.Matricula.ModuloId && m.Activo);
 
-                // Contar pagos de mensualidad completados (excluyendo el que se está anulando)
+                // Contar pagos de mensualidad completados (excluyendo el que se estÃƒÂ¡ anulando)
                 var materiasPagadas = await _context.Pagos
                     .CountAsync(p => p.MatriculaId == pago.MatriculaId &&
                                     p.TipoPago == "Mensualidad" &&
@@ -917,7 +919,7 @@ namespace Sistema.Web.Controllers
             });
         }
 
-        // Método auxiliar para determinar el tipo de pago
+        // MÃƒÂ©todo auxiliar para determinar el tipo de pago
         private string DeterminarMetodoPago(DetallePagoViewModel detalle)
         {
             bool tieneEfectivo = detalle.EfectivoCordobas > 0 || detalle.EfectivoDolares > 0;
@@ -935,9 +937,9 @@ namespace Sistema.Web.Controllers
         [HttpGet("[action]")]
         public async Task<IActionResult> CierreCaja([FromQuery] DateTime? fechaInicio, [FromQuery] DateTime? fechaFin)
         {
-            // Si no se especifica fecha, usar el día actual
+            // Si no se especifica fecha, usar el dÃƒÂ­a actual
             var inicio = fechaInicio?.Date ?? DateTime.Today;
-            var fin = (fechaFin?.Date ?? DateTime.Today).AddDays(1).AddSeconds(-1); // Fin del día
+            var fin = (fechaFin?.Date ?? DateTime.Today).AddDays(1).AddSeconds(-1); // Fin del dÃƒÂ­a
 
             var pagos = await _context.Pagos
                 .Where(p => p.Estado == "Completado" &&
@@ -993,7 +995,7 @@ namespace Sistema.Web.Controllers
                     }
                 },
 
-                // Desglose por método de pago
+                // Desglose por mÃƒÂ©todo de pago
                 porMetodo = new
                 {
                     efectivo = pagos.Count(p => p.MetodoPago == "Efectivo"),

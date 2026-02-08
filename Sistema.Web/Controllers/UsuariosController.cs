@@ -3,6 +3,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -13,6 +14,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class UsuariosController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -37,7 +39,7 @@ namespace Sistema.Web.Controllers
                     .Include(u => u.Rol)
                     .AsQueryable();
 
-                // Filtro: Búsqueda por texto
+                // Filtro: BÃƒÂºsqueda por texto
                 if (!string.IsNullOrEmpty(buscar))
                 {
                     buscar = buscar.ToLower();
@@ -140,10 +142,10 @@ namespace Sistema.Web.Controllers
             var rolExiste = await _context.Roles.AnyAsync(r => r.RolId == model.RolId && r.Activo);
             if (!rolExiste)
             {
-                return BadRequest(new { message = "El rol seleccionado no existe o está inactivo" });
+                return BadRequest(new { message = "El rol seleccionado no existe o estÃƒÂ¡ inactivo" });
             }
 
-            // Generar hash de la contraseña
+            // Generar hash de la contraseÃƒÂ±a
             CrearPasswordHash(model.Password, out byte[] passwordHash, out byte[] passwordSalt);
 
             var usuario = new Usuario
@@ -193,7 +195,7 @@ namespace Sistema.Web.Controllers
             var rolExiste = await _context.Roles.AnyAsync(r => r.RolId == model.RolId && r.Activo);
             if (!rolExiste)
             {
-                return BadRequest(new { message = "El rol seleccionado no existe o está inactivo" });
+                return BadRequest(new { message = "El rol seleccionado no existe o estÃƒÂ¡ inactivo" });
             }
 
             usuario.Nombre = model.Nombre;
@@ -219,24 +221,24 @@ namespace Sistema.Web.Controllers
                 return NotFound();
             }
 
-            // Verificar contraseña actual
+            // Verificar contraseÃƒÂ±a actual
             if (!VerificarPasswordHash(model.PasswordActual, usuario.PasswordHash, usuario.PasswordSalt))
             {
-                return BadRequest(new { message = "La contraseña actual es incorrecta" });
+                return BadRequest(new { message = "La contraseÃƒÂ±a actual es incorrecta" });
             }
 
-            // Generar hash de la nueva contraseña
+            // Generar hash de la nueva contraseÃƒÂ±a
             CrearPasswordHash(model.PasswordNueva, out byte[] passwordHash, out byte[] passwordSalt);
 
             usuario.PasswordHash = passwordHash;
             usuario.PasswordSalt = passwordSalt;
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Contraseña cambiada exitosamente" });
+            return Ok(new { message = "ContraseÃƒÂ±a cambiada exitosamente" });
         }
 
         // PUT: api/Usuarios/ResetPassword
-        // Para que un administrador pueda resetear la contraseña de un usuario
+        // Para que un administrador pueda resetear la contraseÃƒÂ±a de un usuario
         [HttpPut("[action]")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordViewModel model)
         {
@@ -251,14 +253,14 @@ namespace Sistema.Web.Controllers
                 return NotFound();
             }
 
-            // Generar hash de la nueva contraseña
+            // Generar hash de la nueva contraseÃƒÂ±a
             CrearPasswordHash(model.PasswordNueva, out byte[] passwordHash, out byte[] passwordSalt);
 
             usuario.PasswordHash = passwordHash;
             usuario.PasswordSalt = passwordSalt;
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Contraseña reseteada exitosamente" });
+            return Ok(new { message = "ContraseÃƒÂ±a reseteada exitosamente" });
         }
 
         // PUT: api/Usuarios/Activar/{id}
@@ -293,7 +295,7 @@ namespace Sistema.Web.Controllers
             return Ok(new { message = "Usuario desactivado exitosamente" });
         }
 
-        // Métodos auxiliares para manejo de contraseñas
+        // MÃƒÂ©todos auxiliares para manejo de contraseÃƒÂ±as
         private void CrearPasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
         {
             using (var hmac = new HMACSHA512())

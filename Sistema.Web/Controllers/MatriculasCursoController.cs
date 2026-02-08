@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -11,6 +12,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class MatriculasCursoController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -109,7 +111,7 @@ namespace Sistema.Web.Controllers
                     return BadRequest(new { message = "Estudiante no encontrado" });
                 }
 
-                // Verificar que el curso existe y está activo
+                // Verificar que el curso existe y estÃƒÂ¡ activo
                 var curso = await _context.CursosEspecializados
                     .FirstOrDefaultAsync(c => c.CursoEspecializadoId == model.CursoEspecializadoId);
 
@@ -120,10 +122,10 @@ namespace Sistema.Web.Controllers
 
                 if (!curso.Activo)
                 {
-                    return BadRequest(new { message = "El curso no está activo" });
+                    return BadRequest(new { message = "El curso no estÃƒÂ¡ activo" });
                 }
 
-                // Verificar que no tenga matrícula activa o pendiente en el mismo curso
+                // Verificar que no tenga matrÃƒÂ­cula activa o pendiente en el mismo curso
                 var matriculaExistente = await _context.MatriculasCurso
                     .FirstOrDefaultAsync(m => m.EstudianteId == model.EstudianteId
                                            && m.CursoEspecializadoId == model.CursoEspecializadoId
@@ -133,7 +135,7 @@ namespace Sistema.Web.Controllers
                 {
                     return BadRequest(new
                     {
-                        message = $"El estudiante ya tiene una matrícula {matriculaExistente.Estado.ToLower()} en este curso",
+                        message = $"El estudiante ya tiene una matrÃƒÂ­cula {matriculaExistente.Estado.ToLower()} en este curso",
                         matriculaCursoId = matriculaExistente.MatriculaCursoId,
                         codigo = matriculaExistente.Codigo,
                         estado = matriculaExistente.Estado
@@ -148,7 +150,7 @@ namespace Sistema.Web.Controllers
 
                 if (haAprobado)
                 {
-                    return BadRequest(new { message = "El estudiante ya aprobó este curso y no puede volver a matricularse" });
+                    return BadRequest(new { message = "El estudiante ya aprobÃƒÂ³ este curso y no puede volver a matricularse" });
                 }
 
                 // Obtener el cargo del estudiante (si es interno)
@@ -159,13 +161,13 @@ namespace Sistema.Web.Controllers
                     cargoId = cargo.CargoId;
                 }
 
-                // Obtener precio de matrícula según categoría + cargo
+                // Obtener precio de matrÃƒÂ­cula segÃƒÂºn categorÃƒÂ­a + cargo
                 var precioMatricula = await _context.PreciosMatriculaCurso
                     .FirstOrDefaultAsync(p => p.CategoriaEstudianteId == model.CategoriaEstudianteId
                                            && p.CargoId == cargoId
                                            && p.Activo);
 
-                // Si no encuentra precio específico para el cargo, buscar sin cargo
+                // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo
                 if (precioMatricula == null && cargoId.HasValue)
                 {
                     precioMatricula = await _context.PreciosMatriculaCurso
@@ -178,24 +180,24 @@ namespace Sistema.Web.Controllers
                 {
                     return BadRequest(new
                     {
-                        message = "No se encontró precio configurado para cursos especializados",
+                        message = "No se encontrÃƒÂ³ precio configurado para cursos especializados",
                         categoriaEstudianteId = model.CategoriaEstudianteId,
                         cargoId = cargoId,
                         esInterno = estudiante.EsInterno,
-                        detalle = $"Buscando precio para categoría {model.CategoriaEstudianteId} y cargo {(cargoId.HasValue ? cargoId.Value.ToString() : "NULL")}"
+                        detalle = $"Buscando precio para categorÃƒÂ­a {model.CategoriaEstudianteId} y cargo {(cargoId.HasValue ? cargoId.Value.ToString() : "NULL")}"
                     });
                 }
 
                 decimal montoMatricula = precioMatricula.Precio;
                 decimal descuento = 0;
 
-                // Aplicar beca si el estudiante está becado
+                // Aplicar beca si el estudiante estÃƒÂ¡ becado
                 if (estudiante.EsBecado && estudiante.PorcentajeBeca > 0)
                 {
                     descuento = montoMatricula * (estudiante.PorcentajeBeca / 100);
                 }
 
-                // Generar código automático MCURSO-2026-0001, MCURSO-2026-0002, etc.
+                // Generar cÃƒÂ³digo automÃƒÂ¡tico MCURSO-2026-0001, MCURSO-2026-0002, etc.
                 var anioActual = DateTime.Now.Year;
                 var prefijoAnio = $"MCURSO-{anioActual}-";
                 var ultimoCodigo = await _context.MatriculasCurso
@@ -217,10 +219,10 @@ namespace Sistema.Web.Controllers
 
                 decimal montoFinal = montoMatricula - descuento;
 
-                // Si el monto es $0 (becado 100%), activar automáticamente sin necesidad de pago
+                // Si el monto es $0 (becado 100%), activar automÃƒÂ¡ticamente sin necesidad de pago
                 string estadoInicial = montoFinal == 0 ? "Activa" : "Pendiente";
 
-                // Si está becado 100%, agregar observación automática
+                // Si estÃƒÂ¡ becado 100%, agregar observaciÃƒÂ³n automÃƒÂ¡tica
                 string observaciones = montoFinal == 0 ? "Becado 100%" : null;
 
                 var matricula = new MatriculaCurso
@@ -257,7 +259,7 @@ namespace Sistema.Web.Controllers
             {
                 return StatusCode(500, new
                 {
-                    message = "Error al crear matrícula del curso",
+                    message = "Error al crear matrÃƒÂ­cula del curso",
                     error = ex.Message,
                     innerError = ex.InnerException?.Message
                 });
@@ -286,13 +288,13 @@ namespace Sistema.Web.Controllers
                 cargoId = cargo.CargoId;
             }
 
-            // Obtener precio de matrícula según categoría + cargo
+            // Obtener precio de matrÃƒÂ­cula segÃƒÂºn categorÃƒÂ­a + cargo
             var precioMatricula = await _context.PreciosMatriculaCurso
                 .FirstOrDefaultAsync(p => p.CategoriaEstudianteId == categoriaId
                                        && p.CargoId == cargoId
                                        && p.Activo);
 
-            // Si no encuentra precio específico para el cargo, buscar sin cargo
+            // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo
             if (precioMatricula == null && cargoId.HasValue)
             {
                 precioMatricula = await _context.PreciosMatriculaCurso
@@ -301,13 +303,13 @@ namespace Sistema.Web.Controllers
                                            && p.Activo);
             }
 
-            // Obtener precio de mensualidad según categoría + cargo
+            // Obtener precio de mensualidad segÃƒÂºn categorÃƒÂ­a + cargo
             var precioMensualidad = await _context.PreciosMensualidadCurso
                 .FirstOrDefaultAsync(p => p.CategoriaEstudianteId == categoriaId
                                        && p.CargoId == cargoId
                                        && p.Activo);
 
-            // Si no encuentra precio específico para el cargo, buscar sin cargo
+            // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo
             if (precioMensualidad == null && cargoId.HasValue)
             {
                 precioMensualidad = await _context.PreciosMensualidadCurso
@@ -359,17 +361,17 @@ namespace Sistema.Web.Controllers
 
             if (matricula == null)
             {
-                return NotFound(new { message = "Matrícula no encontrada" });
+                return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
             }
 
             if (matricula.Estado == "Anulada")
             {
-                return BadRequest(new { message = "No se puede activar una matrícula anulada" });
+                return BadRequest(new { message = "No se puede activar una matrÃƒÂ­cula anulada" });
             }
 
             if (matricula.Estado == "Activa")
             {
-                return BadRequest(new { message = "La matrícula ya está activa" });
+                return BadRequest(new { message = "La matrÃƒÂ­cula ya estÃƒÂ¡ activa" });
             }
 
             matricula.Estado = "Activa";
@@ -381,7 +383,7 @@ namespace Sistema.Web.Controllers
                 codigo = matricula.Codigo,
                 estudianteNombre = matricula.Estudiante.NombreCompleto,
                 estado = matricula.Estado,
-                message = "Matrícula activada exitosamente"
+                message = "MatrÃƒÂ­cula activada exitosamente"
             });
         }
 
@@ -395,12 +397,12 @@ namespace Sistema.Web.Controllers
 
             if (matricula == null)
             {
-                return NotFound(new { message = "Matrícula no encontrada" });
+                return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
             }
 
             if (matricula.Estado == "Anulada")
             {
-                return BadRequest(new { message = "La matrícula ya está anulada" });
+                return BadRequest(new { message = "La matrÃƒÂ­cula ya estÃƒÂ¡ anulada" });
             }
 
             matricula.Estado = "Anulada";
@@ -412,7 +414,7 @@ namespace Sistema.Web.Controllers
                 codigo = matricula.Codigo,
                 estudianteNombre = matricula.Estudiante.NombreCompleto,
                 estado = matricula.Estado,
-                message = "Matrícula anulada exitosamente"
+                message = "MatrÃƒÂ­cula anulada exitosamente"
             });
         }
 
@@ -426,12 +428,12 @@ namespace Sistema.Web.Controllers
 
             if (matricula == null)
             {
-                return NotFound(new { message = "Matrícula no encontrada" });
+                return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
             }
 
             if (matricula.Estado != "Activa" && matricula.Estado != "Completada")
             {
-                return BadRequest(new { message = "Solo se pueden marcar como aprobadas las matrículas activas o completadas" });
+                return BadRequest(new { message = "Solo se pueden marcar como aprobadas las matrÃƒÂ­culas activas o completadas" });
             }
 
             matricula.Aprobado = true;
@@ -445,7 +447,7 @@ namespace Sistema.Web.Controllers
                 estudianteNombre = matricula.Estudiante.NombreCompleto,
                 estado = matricula.Estado,
                 aprobado = matricula.Aprobado,
-                message = "Matrícula marcada como aprobada"
+                message = "MatrÃƒÂ­cula marcada como aprobada"
             });
         }
 
@@ -459,12 +461,12 @@ namespace Sistema.Web.Controllers
 
             if (matricula == null)
             {
-                return NotFound(new { message = "Matrícula no encontrada" });
+                return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
             }
 
             if (matricula.Estado != "Activa" && matricula.Estado != "Completada")
             {
-                return BadRequest(new { message = "Solo se pueden marcar como no aprobadas las matrículas activas o completadas" });
+                return BadRequest(new { message = "Solo se pueden marcar como no aprobadas las matrÃƒÂ­culas activas o completadas" });
             }
 
             matricula.Aprobado = false;
@@ -478,7 +480,7 @@ namespace Sistema.Web.Controllers
                 estudianteNombre = matricula.Estudiante.NombreCompleto,
                 estado = matricula.Estado,
                 aprobado = matricula.Aprobado,
-                message = "Matrícula marcada como no aprobada"
+                message = "MatrÃƒÂ­cula marcada como no aprobada"
             });
         }
     }

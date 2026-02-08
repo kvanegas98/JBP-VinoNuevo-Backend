@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -10,6 +11,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class TipoCambioController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -49,7 +51,7 @@ namespace Sistema.Web.Controllers
         }
 
         // POST: api/TipoCambio/Registrar
-        // Registra un nuevo tipo de cambio (cierra el anterior automáticamente)
+        // Registra un nuevo tipo de cambio (cierra el anterior automÃƒÂ¡ticamente)
         [HttpPost("[action]")]
         public async Task<IActionResult> Registrar([FromBody] RegistrarTipoCambioViewModel model)
         {

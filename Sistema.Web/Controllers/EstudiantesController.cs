@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -12,6 +13,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class EstudiantesController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -22,7 +24,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Estudiantes/Listar
-        // Listar estudiantes con filtros avanzados y paginación
+        // Listar estudiantes con filtros avanzados y paginaciÃƒÂ³n
         [HttpGet("[action]")]
         public async Task<IActionResult> Listar(
             [FromQuery] int pagina = 1,
@@ -32,7 +34,7 @@ namespace Sistema.Web.Controllers
             [FromQuery] bool? esBecado = null,
             [FromQuery] int? redId = null,
             [FromQuery] int? cargoId = null, // Filtro por un solo cargo (mantiene compatibilidad)
-            [FromQuery] int[] cargosIds = null, // Filtro por múltiples cargos
+            [FromQuery] int[] cargosIds = null, // Filtro por mÃƒÂºltiples cargos
             [FromQuery] string tipoEstudiante = null, // "Presencial" o "En Linea"
             [FromQuery] bool? activo = null,
             [FromQuery] string ordenarPor = "nombre") // "nombre", "codigo", "ciudad"
@@ -45,7 +47,7 @@ namespace Sistema.Web.Controllers
                         .ThenInclude(ec => ec.Cargo)
                     .AsQueryable();
 
-                // Filtro: Búsqueda por texto (nombre, código, cédula, email)
+                // Filtro: BÃƒÂºsqueda por texto (nombre, cÃƒÂ³digo, cÃƒÂ©dula, email)
                 if (!string.IsNullOrEmpty(buscar))
                 {
                     buscar = buscar.ToLower();
@@ -75,7 +77,7 @@ namespace Sistema.Web.Controllers
                 }
 
                 // Filtro: Por cargo(s)
-                // Si se proporciona cargosIds (múltiples), tiene prioridad sobre cargoId (uno solo)
+                // Si se proporciona cargosIds (mÃƒÂºltiples), tiene prioridad sobre cargoId (uno solo)
                 if (cargosIds != null && cargosIds.Length > 0)
                 {
                     // Filtrar estudiantes que tengan AL MENOS UNO de los cargos especificados
@@ -116,7 +118,7 @@ namespace Sistema.Web.Controllers
                         break;
                 }
 
-                // Paginación
+                // PaginaciÃƒÂ³n
                 var estudiantes = await query
                     .Skip((pagina - 1) * porPagina)
                     .Take(porPagina)
@@ -271,7 +273,7 @@ namespace Sistema.Web.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Generar código automático Año-IVN-Consecutivo (ej: 2026-IVN-0001)
+            // Generar cÃƒÂ³digo automÃƒÂ¡tico AÃƒÂ±o-IVN-Consecutivo (ej: 2026-IVN-0001)
             var anioActual = DateTime.Now.Year;
             var prefijo = $"{anioActual}-IVN-";
 

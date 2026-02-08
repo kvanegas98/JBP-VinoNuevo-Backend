@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -10,6 +11,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class MateriasController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -28,7 +30,7 @@ namespace Sistema.Web.Controllers
                     .ThenInclude(mod => mod.AnioLectivo)
                 .AsQueryable();
 
-            // Filtrar por módulo si se proporciona
+            // Filtrar por mÃƒÂ³dulo si se proporciona
             if (moduloId.HasValue)
             {
                 query = query.Where(m => m.ModuloId == moduloId.Value);
@@ -130,7 +132,7 @@ namespace Sistema.Web.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Si no se especifica orden, asignar el siguiente disponible en el módulo
+            // Si no se especifica orden, asignar el siguiente disponible en el mÃƒÂ³dulo
             int orden = model.Orden;
             if (orden <= 0)
             {

@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -9,6 +10,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PreciosMensualidadCursoController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -80,7 +82,7 @@ namespace Sistema.Web.Controllers
                                        && p.CargoId == cargoId
                                        && p.Activo);
 
-            // Si no encuentra precio específico para el cargo, buscar sin cargo
+            // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo
             if (precio == null && cargoId.HasValue)
             {
                 precio = await _context.PreciosMensualidadCurso
@@ -91,7 +93,7 @@ namespace Sistema.Web.Controllers
 
             if (precio == null)
             {
-                return NotFound(new { message = "Precio no encontrado para la categoría especificada" });
+                return NotFound(new { message = "Precio no encontrado para la categorÃƒÂ­a especificada" });
             }
 
             return Ok(new
@@ -113,14 +115,14 @@ namespace Sistema.Web.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Verificar si ya existe un precio para esa categoría + cargo
+            // Verificar si ya existe un precio para esa categorÃƒÂ­a + cargo
             var existe = await _context.PreciosMensualidadCurso
                 .AnyAsync(p => p.CategoriaEstudianteId == model.CategoriaEstudianteId
                             && p.CargoId == model.CargoId);
 
             if (existe)
             {
-                return BadRequest(new { message = "Ya existe un precio para esta combinación de categoría y cargo" });
+                return BadRequest(new { message = "Ya existe un precio para esta combinaciÃƒÂ³n de categorÃƒÂ­a y cargo" });
             }
 
             var precio = new PrecioMensualidadCurso

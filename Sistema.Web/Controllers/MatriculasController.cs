@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -11,6 +12,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class MatriculasController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -79,7 +81,7 @@ namespace Sistema.Web.Controllers
                 return BadRequest(new { message = "Estudiante no encontrado" });
             }
 
-            // Verificar que no exista una matrícula activa o pendiente del mismo estudiante en el mismo módulo
+            // Verificar que no exista una matrÃƒÂ­cula activa o pendiente del mismo estudiante en el mismo mÃƒÂ³dulo
             var matriculaExistente = await _context.Matriculas
                 .FirstOrDefaultAsync(m => m.EstudianteId == model.EstudianteId
                                        && m.ModuloId == model.ModuloId
@@ -88,7 +90,7 @@ namespace Sistema.Web.Controllers
             if (matriculaExistente != null)
             {
                 return BadRequest(new {
-                    message = $"El estudiante ya tiene una matrícula {matriculaExistente.Estado.ToLower()} en este módulo",
+                    message = $"El estudiante ya tiene una matrÃƒÂ­cula {matriculaExistente.Estado.ToLower()} en este mÃƒÂ³dulo",
                     matriculaId = matriculaExistente.MatriculaId,
                     codigo = matriculaExistente.Codigo,
                     estado = matriculaExistente.Estado
@@ -106,13 +108,13 @@ namespace Sistema.Web.Controllers
                 cargoNombre = cargo.Cargo.Nombre;
             }
 
-            // Obtener precio de matrícula según categoría + cargo
+            // Obtener precio de matrÃƒÂ­cula segÃƒÂºn categorÃƒÂ­a + cargo
             var precioMatricula = await _context.PreciosMatricula
                 .FirstOrDefaultAsync(p => p.CategoriaEstudianteId == model.CategoriaEstudianteId
                                        && p.CargoId == cargoId
                                        && p.Activo);
 
-            // Si no encuentra precio específico para el cargo, buscar sin cargo (precio base)
+            // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo (precio base)
             if (precioMatricula == null && cargoId.HasValue)
             {
                 precioMatricula = await _context.PreciosMatricula
@@ -125,14 +127,14 @@ namespace Sistema.Web.Controllers
             decimal descuento = 0;
             string tipoDescuento = cargoNombre ?? "Sin cargo";
 
-            // Aplicar beca si el estudiante está becado
+            // Aplicar beca si el estudiante estÃƒÂ¡ becado
             if (estudiante.EsBecado && estudiante.PorcentajeBeca > 0)
             {
                 descuento = montoMatricula * (estudiante.PorcentajeBeca / 100);
                 tipoDescuento = $"Beca {estudiante.PorcentajeBeca}%";
             }
 
-            // Generar código automático MAT-2025-0001, MAT-2025-0002, etc.
+            // Generar cÃƒÂ³digo automÃƒÂ¡tico MAT-2025-0001, MAT-2025-0002, etc.
             var anioActual = DateTime.Now.Year;
             var prefijoAnio = $"MAT-{anioActual}-";
             var ultimoCodigo = await _context.Matriculas
@@ -154,10 +156,10 @@ namespace Sistema.Web.Controllers
 
             decimal montoFinal = montoMatricula - descuento;
 
-            // Si el monto es $0 (becado 100%), activar automáticamente sin necesidad de pago
+            // Si el monto es $0 (becado 100%), activar automÃƒÂ¡ticamente sin necesidad de pago
             string estadoInicial = montoFinal == 0 ? "Activa" : "Pendiente";
 
-            // Si está becado 100% y no hay observaciones, agregar observación automática
+            // Si estÃƒÂ¡ becado 100% y no hay observaciones, agregar observaciÃƒÂ³n automÃƒÂ¡tica
             string observaciones = model.Observaciones;
             if (montoFinal == 0 && string.IsNullOrEmpty(observaciones))
             {
@@ -196,7 +198,7 @@ namespace Sistema.Web.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new {
-                    message = "Error al crear matrícula",
+                    message = "Error al crear matrÃƒÂ­cula",
                     error = ex.Message,
                     innerError = ex.InnerException?.Message
                 });
@@ -228,13 +230,13 @@ namespace Sistema.Web.Controllers
                 cargoNombre = cargo.Cargo.Nombre;
             }
 
-            // Obtener precio de matrícula según categoría + cargo
+            // Obtener precio de matrÃƒÂ­cula segÃƒÂºn categorÃƒÂ­a + cargo
             var precioMatricula = await _context.PreciosMatricula
                 .FirstOrDefaultAsync(p => p.CategoriaEstudianteId == categoriaId
                                        && p.CargoId == cargoId
                                        && p.Activo);
 
-            // Si no encuentra precio específico para el cargo, buscar sin cargo
+            // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo
             if (precioMatricula == null && cargoId.HasValue)
             {
                 precioMatricula = await _context.PreciosMatricula
@@ -243,13 +245,13 @@ namespace Sistema.Web.Controllers
                                            && p.Activo);
             }
 
-            // Obtener precio de mensualidad según categoría + cargo
+            // Obtener precio de mensualidad segÃƒÂºn categorÃƒÂ­a + cargo
             var precioMensualidad = await _context.PreciosMensualidad
                 .FirstOrDefaultAsync(p => p.CategoriaEstudianteId == categoriaId
                                        && p.CargoId == cargoId
                                        && p.Activo);
 
-            // Si no encuentra precio específico para el cargo, buscar sin cargo
+            // Si no encuentra precio especÃƒÂ­fico para el cargo, buscar sin cargo
             if (precioMensualidad == null && cargoId.HasValue)
             {
                 precioMensualidad = await _context.PreciosMensualidad
@@ -303,17 +305,17 @@ namespace Sistema.Web.Controllers
 
             if (matricula == null)
             {
-                return NotFound(new { message = "Matrícula no encontrada" });
+                return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
             }
 
             if (matricula.Estado == "Anulada")
             {
-                return BadRequest(new { message = "No se puede activar una matrícula anulada" });
+                return BadRequest(new { message = "No se puede activar una matrÃƒÂ­cula anulada" });
             }
 
             if (matricula.Estado == "Activa")
             {
-                return BadRequest(new { message = "La matrícula ya está activa" });
+                return BadRequest(new { message = "La matrÃƒÂ­cula ya estÃƒÂ¡ activa" });
             }
 
             matricula.Estado = "Activa";
@@ -324,7 +326,7 @@ namespace Sistema.Web.Controllers
                 codigo = matricula.Codigo,
                 estudianteNombre = matricula.Estudiante.NombreCompleto,
                 estado = matricula.Estado,
-                message = "Matrícula activada exitosamente"
+                message = "MatrÃƒÂ­cula activada exitosamente"
             });
         }
 
@@ -338,12 +340,12 @@ namespace Sistema.Web.Controllers
 
             if (matricula == null)
             {
-                return NotFound(new { message = "Matrícula no encontrada" });
+                return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
             }
 
             if (matricula.Estado == "Anulada")
             {
-                return BadRequest(new { message = "La matrícula ya está anulada" });
+                return BadRequest(new { message = "La matrÃƒÂ­cula ya estÃƒÂ¡ anulada" });
             }
 
             matricula.Estado = "Anulada";
@@ -355,7 +357,7 @@ namespace Sistema.Web.Controllers
                 estudianteNombre = matricula.Estudiante.NombreCompleto,
                 estado = matricula.Estado,
                 motivo = model?.Motivo,
-                message = "Matrícula anulada exitosamente"
+                message = "MatrÃƒÂ­cula anulada exitosamente"
             });
         }
 

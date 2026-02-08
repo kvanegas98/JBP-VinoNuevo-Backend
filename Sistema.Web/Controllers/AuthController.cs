@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -16,6 +17,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class AuthController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -28,6 +30,7 @@ namespace Sistema.Web.Controllers
         }
 
         // POST: api/Auth/Login
+        [AllowAnonymous]
         [HttpPost("[action]")]
         public async Task<IActionResult> Login([FromBody] LoginViewModel model)
         {
@@ -99,6 +102,7 @@ namespace Sistema.Web.Controllers
 
         // POST: api/Auth/ValidarToken
         // Endpoint para validar si un token sigue siendo válido
+        [AllowAnonymous]
         [HttpPost("[action]")]
         public async Task<IActionResult> ValidarToken([FromBody] dynamic model)
         {

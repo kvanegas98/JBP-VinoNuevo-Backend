@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ClosedXML.Excel;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -15,6 +16,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class NotasController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -26,7 +28,7 @@ namespace Sistema.Web.Controllers
 
         // GET: api/Notas/Listar
         // Filtros opcionales: anioLectivoId, moduloId, materiaId, redId, aprobado, esInterno, busqueda
-        // Paginación: pagina (1-based), registrosPorPagina
+        // PaginaciÃƒÂ³n: pagina (1-based), registrosPorPagina
         [HttpGet("[action]")]
         public async Task<IActionResult> Listar(
             [FromQuery] int? anioLectivoId = null,
@@ -49,13 +51,13 @@ namespace Sistema.Web.Controllers
                 .Include(n => n.Materia)
                 .AsQueryable();
 
-            // Filtro por año lectivo
+            // Filtro por aÃƒÂ±o lectivo
             if (anioLectivoId.HasValue)
             {
                 query = query.Where(n => n.Matricula.Modulo.AnioLectivoId == anioLectivoId.Value);
             }
 
-            // Filtro por módulo
+            // Filtro por mÃƒÂ³dulo
             if (moduloId.HasValue)
             {
                 query = query.Where(n => n.Matricula.ModuloId == moduloId.Value);
@@ -100,7 +102,7 @@ namespace Sistema.Web.Controllers
                 query = query.Where(n => n.Matricula.Estudiante.EsInterno == esInterno.Value);
             }
 
-            // Filtro por búsqueda (nombre o código del estudiante)
+            // Filtro por bÃƒÂºsqueda (nombre o cÃƒÂ³digo del estudiante)
             if (!string.IsNullOrWhiteSpace(busqueda))
             {
                 busqueda = busqueda.ToLower();
@@ -110,11 +112,11 @@ namespace Sistema.Web.Controllers
                     n.Matricula.Codigo.ToLower().Contains(busqueda));
             }
 
-            // Total de registros para la paginación
+            // Total de registros para la paginaciÃƒÂ³n
             var totalRegistros = await query.CountAsync();
             var totalPaginas = (int)Math.Ceiling((double)totalRegistros / registrosPorPagina);
 
-            // Validar página
+            // Validar pÃƒÂ¡gina
             if (pagina < 1) pagina = 1;
             if (pagina > totalPaginas && totalPaginas > 0) pagina = totalPaginas;
 
@@ -176,7 +178,7 @@ namespace Sistema.Web.Controllers
                     return BadRequest(ModelState);
                 }
 
-                // Validación adicional de rango (por si el cliente no valida)
+                // ValidaciÃƒÂ³n adicional de rango (por si el cliente no valida)
                 if (model.Nota1 < 0 || model.Nota1 > 100)
                 {
                     return BadRequest(new { message = "Primer Parcial debe estar entre 0 y 100" });
@@ -187,32 +189,32 @@ namespace Sistema.Web.Controllers
                     return BadRequest(new { message = "Segundo Parcial debe estar entre 0 y 100" });
                 }
 
-                // Verificar que la matrícula existe y está activa o completada
+                // Verificar que la matrÃƒÂ­cula existe y estÃƒÂ¡ activa o completada
                 var matricula = await _context.Matriculas
                     .FirstOrDefaultAsync(m => m.MatriculaId == model.MatriculaId &&
                         (m.Estado == "Activa" || m.Estado == "Completada"));
 
                 if (matricula == null)
                 {
-                    return BadRequest(new { message = "Matrícula no encontrada o tiene un estado inválido (debe ser Activa o Completada)" });
+                    return BadRequest(new { message = "MatrÃƒÂ­cula no encontrada o tiene un estado invÃƒÂ¡lido (debe ser Activa o Completada)" });
                 }
 
-                // Verificar que la materia pertenece al módulo de la matrícula
+                // Verificar que la materia pertenece al mÃƒÂ³dulo de la matrÃƒÂ­cula
                 var materia = await _context.Materias
                     .FirstOrDefaultAsync(m => m.MateriaId == model.MateriaId && m.ModuloId == matricula.ModuloId);
 
                 if (materia == null)
                 {
-                    return BadRequest(new { message = "La materia no pertenece al módulo de la matrícula" });
+                    return BadRequest(new { message = "La materia no pertenece al mÃƒÂ³dulo de la matrÃƒÂ­cula" });
                 }
 
-                // Verificar que no exista ya una nota para esta matrícula y materia
+                // Verificar que no exista ya una nota para esta matrÃƒÂ­cula y materia
                 var notaExistente = await _context.Notas
                     .AnyAsync(n => n.MatriculaId == model.MatriculaId && n.MateriaId == model.MateriaId);
 
                 if (notaExistente)
                 {
-                    return BadRequest(new { message = "Ya existe una nota registrada para esta matrícula y materia" });
+                    return BadRequest(new { message = "Ya existe una nota registrada para esta matrÃƒÂ­cula y materia" });
                 }
 
                 // Verificar pagos o beca
@@ -288,7 +290,7 @@ namespace Sistema.Web.Controllers
                     return BadRequest(ModelState);
                 }
 
-                // Validación adicional de rango
+                // ValidaciÃƒÂ³n adicional de rango
                 if (model.Nota1 < 0 || model.Nota1 > 100)
                 {
                     return BadRequest(new { message = "Primer Parcial debe estar entre 0 y 100" });
@@ -361,13 +363,13 @@ namespace Sistema.Web.Controllers
                 .Include(n => n.Materia)
                 .AsQueryable();
 
-            // Filtro por año lectivo
+            // Filtro por aÃƒÂ±o lectivo
             if (anioLectivoId.HasValue)
             {
                 query = query.Where(n => n.Matricula.Modulo.AnioLectivoId == anioLectivoId.Value);
             }
 
-            // Filtro por módulo
+            // Filtro por mÃƒÂ³dulo
             if (moduloId.HasValue)
             {
                 query = query.Where(n => n.Matricula.ModuloId == moduloId.Value);
@@ -411,7 +413,7 @@ namespace Sistema.Web.Controllers
                 query = query.Where(n => n.Matricula.Estudiante.EsInterno == esInterno.Value);
             }
 
-            // Filtro por búsqueda
+            // Filtro por bÃƒÂºsqueda
             if (!string.IsNullOrWhiteSpace(busqueda))
             {
                 busqueda = busqueda.ToLower();
@@ -461,7 +463,7 @@ namespace Sistema.Web.Controllers
         private IActionResult GenerarCsv<T>(System.Collections.Generic.List<T> notas, string timestamp) where T : class
         {
             var csv = new System.Text.StringBuilder();
-            csv.AppendLine("Año Lectivo,Módulo,Código,Nombre,Red,Tipo,Materia,Primer Parcial,Segundo Parcial,Promedio,Estado,Fecha Registro,Observaciones");
+            csv.AppendLine("AÃƒÂ±o Lectivo,MÃƒÂ³dulo,CÃƒÂ³digo,Nombre,Red,Tipo,Materia,Primer Parcial,Segundo Parcial,Promedio,Estado,Fecha Registro,Observaciones");
 
             foreach (dynamic n in notas)
             {
@@ -479,7 +481,7 @@ namespace Sistema.Web.Controllers
                 var worksheet = workbook.Worksheets.Add("Notas");
 
                 // Encabezados
-                var headers = new[] { "Año Lectivo", "Módulo", "Código", "Nombre", "Red", "Tipo", "Materia", "Primer Parcial", "Segundo Parcial", "Promedio", "Estado", "Fecha Registro", "Observaciones" };
+                var headers = new[] { "AÃƒÂ±o Lectivo", "MÃƒÂ³dulo", "CÃƒÂ³digo", "Nombre", "Red", "Tipo", "Materia", "Primer Parcial", "Segundo Parcial", "Promedio", "Estado", "Fecha Registro", "Observaciones" };
                 for (int i = 0; i < headers.Length; i++)
                 {
                     worksheet.Cell(1, i + 1).Value = headers[i];
@@ -540,7 +542,7 @@ namespace Sistema.Web.Controllers
 
                 document.Open();
 
-                // Título
+                // TÃƒÂ­tulo
                 var titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 16);
                 var headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 8);
                 var cellFont = FontFactory.GetFont(FontFactory.HELVETICA, 7);
@@ -559,7 +561,7 @@ namespace Sistema.Web.Controllers
                 table.SetWidths(new float[] { 8, 8, 7, 15, 8, 6, 12, 6, 6, 6, 7 });
 
                 // Encabezados
-                var headers = new[] { "Año", "Módulo", "Código", "Nombre", "Red", "Tipo", "Materia", "P1", "P2", "Prom", "Estado" };
+                var headers = new[] { "AÃƒÂ±o", "MÃƒÂ³dulo", "CÃƒÂ³digo", "Nombre", "Red", "Tipo", "Materia", "P1", "P2", "Prom", "Estado" };
                 foreach (var header in headers)
                 {
                     var cell = new PdfPCell(new Phrase(header, headerFont))

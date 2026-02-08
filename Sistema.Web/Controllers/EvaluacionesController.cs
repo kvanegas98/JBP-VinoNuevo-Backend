@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -10,11 +11,12 @@ using Sistema.Web.Models.Notas;
 namespace Sistema.Web.Controllers
 {
     /// <summary>
-    /// Controller para el nuevo sistema de evaluación flexible
-    /// Maneja componentes de evaluación configurables (Examen1, Examen2, Proyecto, etc.)
+    /// Controller para el nuevo sistema de evaluaciÃƒÂ³n flexible
+    /// Maneja componentes de evaluaciÃƒÂ³n configurables (Examen1, Examen2, Proyecto, etc.)
     /// </summary>
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class EvaluacionesController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -44,7 +46,7 @@ namespace Sistema.Web.Controllers
                     return BadRequest(new { message = "Solo puede especificar MatriculaId o MatriculaCursoId, no ambos" });
                 }
 
-                // 2. Obtener el tipo de evaluación del curso/materia
+                // 2. Obtener el tipo de evaluaciÃƒÂ³n del curso/materia
                 int tipoEvaluacionId;
                 string programaNombre;
 
@@ -55,9 +57,9 @@ namespace Sistema.Web.Controllers
                         .FirstOrDefaultAsync(m => m.MatriculaId == model.MatriculaId.Value);
 
                     if (matricula == null)
-                        return NotFound(new { message = "Matrícula no encontrada" });
+                        return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
 
-                    // Para el sistema flexible, usar tipo REGULAR (1) por defecto para matrículas académicas
+                    // Para el sistema flexible, usar tipo REGULAR (1) por defecto para matrÃƒÂ­culas acadÃƒÂ©micas
                     tipoEvaluacionId = 1; // REGULAR
                     programaNombre = matricula.Modulo.Nombre;
                 }
@@ -69,7 +71,7 @@ namespace Sistema.Web.Controllers
                         .FirstOrDefaultAsync(m => m.MatriculaCursoId == model.MatriculaCursoId.Value);
 
                     if (matriculaCurso == null)
-                        return NotFound(new { message = "Matrícula de curso no encontrada" });
+                        return NotFound(new { message = "MatrÃƒÂ­cula de curso no encontrada" });
 
                     tipoEvaluacionId = matriculaCurso.CursoEspecializado.TipoEvaluacionId;
                     programaNombre = matriculaCurso.CursoEspecializado.Nombre;
@@ -81,13 +83,13 @@ namespace Sistema.Web.Controllers
                     .FirstOrDefaultAsync(c => c.ComponenteEvaluacionId == model.ComponenteEvaluacionId);
 
                 if (componente == null)
-                    return NotFound(new { message = "Componente de evaluación no encontrado" });
+                    return NotFound(new { message = "Componente de evaluaciÃƒÂ³n no encontrado" });
 
                 if (componente.TipoEvaluacionId != tipoEvaluacionId)
                 {
                     return BadRequest(new
                     {
-                        message = "El componente de evaluación no corresponde al tipo de curso",
+                        message = "El componente de evaluaciÃƒÂ³n no corresponde al tipo de curso",
                         componenteTipo = componente.TipoEvaluacion.Nombre,
                         programaTipo = await _context.TiposEvaluacion
                             .Where(t => t.TipoEvaluacionId == tipoEvaluacionId)
@@ -96,7 +98,7 @@ namespace Sistema.Web.Controllers
                     });
                 }
 
-                // 4. Validar pagos o beca (solo para matrículas académicas)
+                // 4. Validar pagos o beca (solo para matrÃƒÂ­culas acadÃƒÂ©micas)
                 if (model.MatriculaId.HasValue)
                 {
                     var matriculaConEstudiante = await _context.Matriculas
@@ -115,7 +117,7 @@ namespace Sistema.Web.Controllers
                         {
                             return BadRequest(new
                             {
-                                message = "No se puede registrar la nota. El estudiante no ha realizado pagos para esta matrícula",
+                                message = "No se puede registrar la nota. El estudiante no ha realizado pagos para esta matrÃƒÂ­cula",
                                 requierePago = true
                             });
                         }
@@ -213,7 +215,7 @@ namespace Sistema.Web.Controllers
         }
 
         // ===================================================================
-        // GET: api/Evaluaciones/Matricula/{matriculaId} - Obtener notas por matrícula académica
+        // GET: api/Evaluaciones/Matricula/{matriculaId} - Obtener notas por matrÃƒÂ­cula acadÃƒÂ©mica
         // ===================================================================
         [HttpGet("Matricula/{matriculaId}")]
         public async Task<IActionResult> ObtenerPorMatricula(int matriculaId)
@@ -234,7 +236,7 @@ namespace Sistema.Web.Controllers
                         matriculaCursoId = n.MatriculaCursoId,
                         materiaId = n.MateriaId,
                         materiaNombre = n.Materia != null ? n.Materia.Nombre : null,
-                        tipoMatricula = "Académica",
+                        tipoMatricula = "AcadÃƒÂ©mica",
                         matriculaCodigo = n.Matricula.Codigo,
                         programaNombre = n.Matricula.Modulo.Nombre,
                         componenteEvaluacionId = n.ComponenteEvaluacionId.Value,
@@ -257,7 +259,7 @@ namespace Sistema.Web.Controllers
         }
 
         // ===================================================================
-        // GET: api/Evaluaciones/MatriculaCurso/{id} - Obtener notas por matrícula de curso
+        // GET: api/Evaluaciones/MatriculaCurso/{id} - Obtener notas por matrÃƒÂ­cula de curso
         // ===================================================================
         [HttpGet("MatriculaCurso/{matriculaCursoId}")]
         public async Task<IActionResult> ObtenerPorMatriculaCurso(int matriculaCursoId)
@@ -309,14 +311,14 @@ namespace Sistema.Web.Controllers
         {
             try
             {
-                // 1. Validar que solo uno esté presente
+                // 1. Validar que solo uno estÃƒÂ© presente
                 if (!matriculaId.HasValue && !matriculaCursoId.HasValue)
                     return BadRequest(new { message = "Debe especificar matriculaId o matriculaCursoId" });
 
                 if (matriculaId.HasValue && matriculaCursoId.HasValue)
                     return BadRequest(new { message = "Solo puede especificar matriculaId o matriculaCursoId, no ambos" });
 
-                // 2. Obtener tipo de evaluación
+                // 2. Obtener tipo de evaluaciÃƒÂ³n
                 int tipoEvaluacionId;
                 string tipoEvaluacionNombre;
 
@@ -325,11 +327,11 @@ namespace Sistema.Web.Controllers
                     var matricula = await _context.Matriculas
                         .FirstOrDefaultAsync(m => m.MatriculaId == matriculaId.Value);
 
-                    if (matricula == null) return NotFound(new { message = "Matrícula no encontrada" });
+                    if (matricula == null) return NotFound(new { message = "MatrÃƒÂ­cula no encontrada" });
 
                     // Para el sistema flexible, usar tipo REGULAR (1) por defecto
                     tipoEvaluacionId = 1; // REGULAR
-                    tipoEvaluacionNombre = "Evaluación Regular (3 componentes)";
+                    tipoEvaluacionNombre = "EvaluaciÃƒÂ³n Regular (3 componentes)";
                 }
                 else
                 {
@@ -337,7 +339,7 @@ namespace Sistema.Web.Controllers
                         .Include(m => m.CursoEspecializado).ThenInclude(c => c.TipoEvaluacion)
                         .FirstOrDefaultAsync(m => m.MatriculaCursoId == matriculaCursoId.Value);
 
-                    if (curso == null) return NotFound(new { message = "Matrícula de curso no encontrada" });
+                    if (curso == null) return NotFound(new { message = "MatrÃƒÂ­cula de curso no encontrada" });
 
                     tipoEvaluacionId = curso.CursoEspecializado.TipoEvaluacionId;
                     tipoEvaluacionNombre = curso.CursoEspecializado.TipoEvaluacion.Nombre;
@@ -359,7 +361,7 @@ namespace Sistema.Web.Controllers
 
                 bool notasCompletas = notasConComponentes.Count >= componentesRequeridos;
 
-                // Si no están todas las notas
+                // Si no estÃƒÂ¡n todas las notas
                 if (!notasCompletas)
                 {
                     return Ok(new PromedioViewModel
@@ -509,7 +511,7 @@ namespace Sistema.Web.Controllers
             {
                 if (tipoPrograma == "academico")
                 {
-                    // Obtener todas las matrículas académicas con sus relaciones
+                    // Obtener todas las matrÃƒÂ­culas acadÃƒÂ©micas con sus relaciones
                     var query = _context.Matriculas
                         .Include(m => m.Estudiante)
                         .Include(m => m.Modulo)
@@ -536,7 +538,7 @@ namespace Sistema.Web.Controllers
                     // Total registros
                     var total = await query.CountAsync();
 
-                    // Obtener matrículas paginadas
+                    // Obtener matrÃƒÂ­culas paginadas
                     var matriculas = await query
                         .OrderByDescending(m => m.FechaMatricula)
                         .Skip((pagina - 1) * registrosPorPagina)
@@ -558,7 +560,7 @@ namespace Sistema.Web.Controllers
                         else
                             estadoEvaluacion = "Completado";
 
-                        // Calcular nota final si está completo
+                        // Calcular nota final si estÃƒÂ¡ completo
                         int? notaFinal = null;
                         if (notasRegistradas == COMPONENTES_REQUERIDOS)
                         {
@@ -586,7 +588,7 @@ namespace Sistema.Web.Controllers
                                 nombre = m.Modulo.Nombre,
                                 anioLectivo = m.Modulo.AnioLectivo.Nombre
                             },
-                            tipoEvaluacion = "Evaluación Regular (3 componentes)",
+                            tipoEvaluacion = "EvaluaciÃƒÂ³n Regular (3 componentes)",
                             progreso = new
                             {
                                 componentesRegistrados = notasRegistradas,
@@ -599,7 +601,7 @@ namespace Sistema.Web.Controllers
                         };
                     }).AsQueryable();
 
-                    // Filtro adicional por estado de evaluación
+                    // Filtro adicional por estado de evaluaciÃƒÂ³n
                     if (!string.IsNullOrWhiteSpace(estado))
                     {
                         resultado = resultado.Where(r =>
@@ -620,7 +622,7 @@ namespace Sistema.Web.Controllers
                 }
                 else // especializado
                 {
-                    // Similar lógica para cursos especializados
+                    // Similar lÃƒÂ³gica para cursos especializados
                     var query = _context.MatriculasCurso
                         .Include(m => m.Estudiante)
                         .Include(m => m.CursoEspecializado)
@@ -737,7 +739,7 @@ namespace Sistema.Web.Controllers
                 if (estudiante == null)
                     return NotFound(new { message = "Estudiante no encontrado" });
 
-                // Notas académicas (nuevo sistema)
+                // Notas acadÃƒÂ©micas (nuevo sistema)
                 var notasAcademicas = await _context.Notas
                     .Include(n => n.Matricula)
                         .ThenInclude(m => m.Modulo)
@@ -752,7 +754,7 @@ namespace Sistema.Web.Controllers
                     {
                         notaId = n.NotaId,
                         matriculaId = n.MatriculaId,
-                        tipoPrograma = "Académico",
+                        tipoPrograma = "AcadÃƒÂ©mico",
                         programa = n.Matricula.Modulo.Nombre,
                         materiaId = n.MateriaId,
                         materia = n.Materia != null ? n.Materia.Nombre : n.Matricula.Modulo.Nombre,
@@ -795,7 +797,7 @@ namespace Sistema.Web.Controllers
                     })
                     .ToListAsync();
 
-                // Calcular estadísticas
+                // Calcular estadÃƒÂ­sticas
                 var todasLasNotas = notasAcademicas.Concat(notasEspecializadas).ToList();
                 var totalNotas = todasLasNotas.Count;
                 var promedioGeneral = totalNotas > 0 ? Math.Round(todasLasNotas.Average(n => n.nota.Value), 2) : 0;

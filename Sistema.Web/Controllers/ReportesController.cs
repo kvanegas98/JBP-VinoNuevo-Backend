@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -9,6 +10,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ReportesController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -19,7 +21,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Reportes/Dashboard
-        // Dashboard principal con métricas generales (optimizado)
+        // Dashboard principal con mÃƒÂ©tricas generales (optimizado)
         [HttpGet("[action]")]
         public async Task<IActionResult> Dashboard(
             [FromQuery] int? anioLectivoId = null,
@@ -29,7 +31,7 @@ namespace Sistema.Web.Controllers
         {
             try
             {
-                // Si no se especifica año, tomar el más reciente
+                // Si no se especifica aÃƒÂ±o, tomar el mÃƒÂ¡s reciente
                 if (!anioLectivoId.HasValue)
                 {
                     var ultimoAnio = await _context.AniosLectivos
@@ -52,7 +54,7 @@ namespace Sistema.Web.Controllers
                 var estudiantesExternos = totalEstudiantes - estudiantesInternos;
                 var estudiantesBecados = await queryEstudiantes.CountAsync(e => e.EsBecado);
 
-                // Matrículas con filtros
+                // MatrÃƒÂ­culas con filtros
                 var queryMatriculas = _context.Matriculas
                     .Include(m => m.Estudiante)
                     .Where(m => !anioLectivoId.HasValue || m.Modulo.AnioLectivoId == anioLectivoId.Value);
@@ -71,7 +73,7 @@ namespace Sistema.Web.Controllers
                     .Select(g => new { Estado = g.Key, Cantidad = g.Count() })
                     .ToListAsync();
 
-                // Matrículas de cursos especializados con filtros
+                // MatrÃƒÂ­culas de cursos especializados con filtros
                 var queryMatriculasCurso = _context.MatriculasCurso
                     .Include(m => m.Estudiante)
                     .AsQueryable();
@@ -87,7 +89,7 @@ namespace Sistema.Web.Controllers
                     .Select(g => new { Estado = g.Key, Cantidad = g.Count() })
                     .ToListAsync();
 
-                // Combinar matrículas académicas y de cursos
+                // Combinar matrÃƒÂ­culas acadÃƒÂ©micas y de cursos
                 var totalMatriculas = matriculas.Sum(m => m.Cantidad) + matriculasCurso.Sum(m => m.Cantidad);
                 var pendientes = (matriculas.FirstOrDefault(m => m.Estado == "Pendiente")?.Cantidad ?? 0) +
                                 (matriculasCurso.FirstOrDefault(m => m.Estado == "Pendiente")?.Cantidad ?? 0);
@@ -138,7 +140,7 @@ namespace Sistema.Web.Controllers
 
                 var recaudadoMes = pagosMes.Sum(p => p.MontoFinal) + pagosCursoMes.Sum(p => p.MontoFinal);
 
-                // Combinar pagos académicos y de cursos para agrupar por tipo
+                // Combinar pagos acadÃƒÂ©micos y de cursos para agrupar por tipo
                 var todosLosPagosPorTipo = pagosMes
                     .Select(p => new { p.TipoPago, p.MontoFinal })
                     .Concat(pagosCursoMes.Select(p => new { p.TipoPago, p.MontoFinal }))
@@ -150,7 +152,7 @@ namespace Sistema.Web.Controllers
                     })
                     .ToList();
 
-                // Combinar pagos académicos y de cursos para agrupar por método
+                // Combinar pagos acadÃƒÂ©micos y de cursos para agrupar por mÃƒÂ©todo
                 var todosLosPagosPorMetodo = pagosMes
                     .Select(p => new { p.MetodoPago, p.MontoFinal })
                     .Concat(pagosCursoMes.Select(p => new { p.MetodoPago, p.MontoFinal }))
@@ -163,7 +165,7 @@ namespace Sistema.Web.Controllers
                     .ToList();
 
                 // MORA: Solo cuenta materias de meses ANTERIORES no pagadas con filtros
-                // El mes 1 comienza desde el PAGO DE MATRÍCULA (cuando el estudiante queda inscrito)
+                // El mes 1 comienza desde el PAGO DE MATRÃƒÂCULA (cuando el estudiante queda inscrito)
                 var queryMatriculasActivasBase = _context.Matriculas
                     .Include(m => m.Modulo)
                     .Include(m => m.Estudiante)
@@ -187,7 +189,7 @@ namespace Sistema.Web.Controllers
 
                 foreach (var mat in matriculasActivas)
                 {
-                    // Obtener el pago de matrícula para esta matrícula
+                    // Obtener el pago de matrÃƒÂ­cula para esta matrÃƒÂ­cula
                     var pagoMatricula = await _context.Pagos
                         .Where(p => p.MatriculaId == mat.MatriculaId &&
                                    p.TipoPago == "Matricula" &&
@@ -195,43 +197,43 @@ namespace Sistema.Web.Controllers
                         .OrderBy(p => p.FechaPago)
                         .FirstOrDefaultAsync();
 
-                    // Si no hay pago de matrícula, no hay mora (no está inscrito oficialmente)
+                    // Si no hay pago de matrÃƒÂ­cula, no hay mora (no estÃƒÂ¡ inscrito oficialmente)
                     if (pagoMatricula == null)
                         continue;
 
-                    // Calcular meses transcurridos desde el pago de matrícula
-                    // Mes 1 = mes del pago de matrícula, Mes 2 = siguiente mes, etc.
+                    // Calcular meses transcurridos desde el pago de matrÃƒÂ­cula
+                    // Mes 1 = mes del pago de matrÃƒÂ­cula, Mes 2 = siguiente mes, etc.
                     int mesesTranscurridos = ((hoy.Year - pagoMatricula.FechaPago.Year) * 12) +
                                             (hoy.Month - pagoMatricula.FechaPago.Month) + 1;
 
-                    // Materias que DEBERÍAN estar pagadas (meses anteriores al actual)
-                    // Si estamos en el mes 3, deberían estar pagadas las de orden 1 y 2 (no la 3 porque es el mes actual)
+                    // Materias que DEBERÃƒÂAN estar pagadas (meses anteriores al actual)
+                    // Si estamos en el mes 3, deberÃƒÂ­an estar pagadas las de orden 1 y 2 (no la 3 porque es el mes actual)
                     int materiasQueDeberianEstarPagadas = mesesTranscurridos - 1;
                     if (materiasQueDeberianEstarPagadas < 0) materiasQueDeberianEstarPagadas = 0;
 
-                    // Si no hay materias que deberían estar pagadas, no hay mora posible
+                    // Si no hay materias que deberÃƒÂ­an estar pagadas, no hay mora posible
                     if (materiasQueDeberianEstarPagadas <= 0)
                         continue;
 
-                    // Obtener materias del módulo ordenadas
+                    // Obtener materias del mÃƒÂ³dulo ordenadas
                     var materiasModulo = await _context.Materias
                         .Where(m => m.ModuloId == mat.ModuloId && m.Activo)
                         .OrderBy(m => m.Orden)
                         .Select(m => m.MateriaId)
                         .ToListAsync();
 
-                    // Limitar a las materias que existen en el módulo
+                    // Limitar a las materias que existen en el mÃƒÂ³dulo
                     if (materiasQueDeberianEstarPagadas > materiasModulo.Count)
                         materiasQueDeberianEstarPagadas = materiasModulo.Count;
 
-                    // Cantidad de materias realmente pagadas (sin importar cuáles específicamente)
+                    // Cantidad de materias realmente pagadas (sin importar cuÃƒÂ¡les especÃƒÂ­ficamente)
                     var cantidadMateriasPagadas = await _context.Pagos
                         .CountAsync(p => p.MatriculaId == mat.MatriculaId &&
                                         p.TipoPago == "Mensualidad" &&
                                         p.Estado == "Completado" &&
                                         p.MateriaId.HasValue);
 
-                    // Materias en mora = materias que deberían estar pagadas - materias pagadas
+                    // Materias en mora = materias que deberÃƒÂ­an estar pagadas - materias pagadas
                     var materiasEnMora = materiasQueDeberianEstarPagadas - cantidadMateriasPagadas;
                     if (materiasEnMora < 0) materiasEnMora = 0;
 
@@ -256,13 +258,13 @@ namespace Sistema.Web.Controllers
                 if (esInterno.HasValue)
                     queryMatriculasCursoActivas = queryMatriculasCursoActivas.Where(m => m.Estudiante.EsInterno == esInterno.Value);
 
-                // Para cursos especializados no filtramos por módulo, pero podríamos filtrar por curso si se necesita
+                // Para cursos especializados no filtramos por mÃƒÂ³dulo, pero podrÃƒÂ­amos filtrar por curso si se necesita
 
                 var matriculasCursoActivas = await queryMatriculasCursoActivas.ToListAsync();
 
                 foreach (var matCurso in matriculasCursoActivas)
                 {
-                    // Obtener el pago de matrícula para este curso
+                    // Obtener el pago de matrÃƒÂ­cula para este curso
                     var pagoCursoMatricula = await _context.PagosCurso
                         .Where(p => p.MatriculaCursoId == matCurso.MatriculaCursoId &&
                                    p.TipoPago == "Matricula" &&
@@ -277,7 +279,7 @@ namespace Sistema.Web.Controllers
                     int mesesTranscurridos = ((hoy.Year - pagoCursoMatricula.FechaPago.Year) * 12) +
                                             (hoy.Month - pagoCursoMatricula.FechaPago.Month) + 1;
 
-                    // Mensualidades que deberían estar pagadas (meses anteriores al actual)
+                    // Mensualidades que deberÃƒÂ­an estar pagadas (meses anteriores al actual)
                     int mensualidadesQueDeberianEstarPagadas = mesesTranscurridos - 1;
                     if (mensualidadesQueDeberianEstarPagadas < 0) mensualidadesQueDeberianEstarPagadas = 0;
 
@@ -328,7 +330,7 @@ namespace Sistema.Web.Controllers
                 // Alertas
                 var alertas = new System.Collections.Generic.List<object>();
 
-                // Alerta de mora (calculada arriba con la nueva lógica)
+                // Alerta de mora (calculada arriba con la nueva lÃƒÂ³gica)
                 if (estudiantesEnMora > 0)
                 {
                     alertas.Add(new {
@@ -349,7 +351,7 @@ namespace Sistema.Web.Controllers
                     {
                         alertas.Add(new {
                             Tipo = "warning",
-                            Mensaje = $"Tipo de cambio: {diasSinActualizar} días sin actualizar"
+                            Mensaje = $"Tipo de cambio: {diasSinActualizar} dÃƒÂ­as sin actualizar"
                         });
                     }
                 }
@@ -403,9 +405,9 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Reportes/Morosidad
-        // Reporte de estudiantes con pagos pendientes (con paginación)
+        // Reporte de estudiantes con pagos pendientes (con paginaciÃƒÂ³n)
         // MORA: Solo cuenta materias de meses ANTERIORES no pagadas (basado en Orden de materia)
-        // INCLUYE: Matrículas regulares Y matrículas de cursos especializados
+        // INCLUYE: MatrÃƒÂ­culas regulares Y matrÃƒÂ­culas de cursos especializados
         [HttpGet("[action]")]
         public async Task<IActionResult> Morosidad(
             [FromQuery] int pagina = 1,
@@ -421,7 +423,7 @@ namespace Sistema.Web.Controllers
                 var estudiantesConMora = new System.Collections.Generic.List<object>();
                 var hoy = DateTime.Now;
 
-                // ==================== PROCESAR MATRÍCULAS REGULARES ====================
+                // ==================== PROCESAR MATRÃƒÂCULAS REGULARES ====================
                 var queryMatriculas = _context.Matriculas
                     .Where(m => m.Estado == "Activa")
                     .Include(m => m.Estudiante)
@@ -429,7 +431,7 @@ namespace Sistema.Web.Controllers
                     .Include(m => m.Modulo)
                     .AsQueryable();
 
-                // Filtros para matrículas regulares
+                // Filtros para matrÃƒÂ­culas regulares
                 if (redId.HasValue)
                 {
                     queryMatriculas = queryMatriculas.Where(m => m.Estudiante.RedId == redId.Value);
@@ -447,10 +449,10 @@ namespace Sistema.Web.Controllers
 
                 var matriculasActivas = await queryMatriculas.ToListAsync();
 
-                // Calcular mora para cada matrícula regular
+                // Calcular mora para cada matrÃƒÂ­cula regular
                 foreach (var mat in matriculasActivas)
                 {
-                    // Obtener el pago de matrícula para esta matrícula
+                    // Obtener el pago de matrÃƒÂ­cula para esta matrÃƒÂ­cula
                     var pagoMatricula = await _context.Pagos
                         .Where(p => p.MatriculaId == mat.MatriculaId &&
                                    p.TipoPago == "Matricula" &&
@@ -458,27 +460,27 @@ namespace Sistema.Web.Controllers
                         .OrderBy(p => p.FechaPago)
                         .FirstOrDefaultAsync();
 
-                    // Si no hay pago de matrícula, no hay mora (no está inscrito oficialmente)
+                    // Si no hay pago de matrÃƒÂ­cula, no hay mora (no estÃƒÂ¡ inscrito oficialmente)
                     if (pagoMatricula == null)
                         continue;
 
-                    // Calcular meses transcurridos desde el pago de matrícula
+                    // Calcular meses transcurridos desde el pago de matrÃƒÂ­cula
                     int mesesTranscurridos = ((hoy.Year - pagoMatricula.FechaPago.Year) * 12) +
                                             (hoy.Month - pagoMatricula.FechaPago.Month) + 1;
 
-                    // Materias que DEBERÍAN estar pagadas (meses anteriores al actual)
+                    // Materias que DEBERÃƒÂAN estar pagadas (meses anteriores al actual)
                     int materiasQueDeberianEstarPagadas = mesesTranscurridos - 1;
                     if (materiasQueDeberianEstarPagadas < 0) materiasQueDeberianEstarPagadas = 0;
 
-                    // Si no hay materias que deberían estar pagadas, no hay mora posible
+                    // Si no hay materias que deberÃƒÂ­an estar pagadas, no hay mora posible
                     if (materiasQueDeberianEstarPagadas <= 0)
                         continue;
 
-                    // Obtener total de materias del módulo
+                    // Obtener total de materias del mÃƒÂ³dulo
                     var totalMaterias = await _context.Materias
                         .CountAsync(m => m.ModuloId == mat.ModuloId && m.Activo);
 
-                    // Limitar a las materias que existen en el módulo
+                    // Limitar a las materias que existen en el mÃƒÂ³dulo
                     if (materiasQueDeberianEstarPagadas > totalMaterias)
                         materiasQueDeberianEstarPagadas = totalMaterias;
 
@@ -508,7 +510,7 @@ namespace Sistema.Web.Controllers
 
                         estudiantesConMora.Add(new
                         {
-                            tipo = "Módulo Académico",
+                            tipo = "MÃƒÂ³dulo AcadÃƒÂ©mico",
                             estudianteId = mat.EstudianteId,
                             estudianteCodigo = mat.Estudiante.Codigo,
                             estudianteNombre = mat.Estudiante.NombreCompleto,
@@ -530,7 +532,7 @@ namespace Sistema.Web.Controllers
                     }
                 }
 
-                // ==================== PROCESAR MATRÍCULAS DE CURSOS ESPECIALIZADOS ====================
+                // ==================== PROCESAR MATRÃƒÂCULAS DE CURSOS ESPECIALIZADOS ====================
                 var queryCursos = _context.MatriculasCurso
                     .Where(m => m.Estado == "Activa")
                     .Include(m => m.Estudiante)
@@ -556,10 +558,10 @@ namespace Sistema.Web.Controllers
 
                 var matriculasCursoActivas = await queryCursos.ToListAsync();
 
-                // Calcular mora para cada matrícula de curso
+                // Calcular mora para cada matrÃƒÂ­cula de curso
                 foreach (var mat in matriculasCursoActivas)
                 {
-                    // Obtener el pago de matrícula para esta matrícula de curso
+                    // Obtener el pago de matrÃƒÂ­cula para esta matrÃƒÂ­cula de curso
                     var pagoCursoMatricula = await _context.PagosCurso
                         .Where(p => p.MatriculaCursoId == mat.MatriculaCursoId &&
                                    p.TipoPago == "Matricula" &&
@@ -570,7 +572,7 @@ namespace Sistema.Web.Controllers
                     if (pagoCursoMatricula == null)
                         continue;
 
-                    // Calcular meses transcurridos desde el pago de matrícula
+                    // Calcular meses transcurridos desde el pago de matrÃƒÂ­cula
                     int mesesTranscurridos = ((hoy.Year - pagoCursoMatricula.FechaPago.Year) * 12) +
                                             (hoy.Month - pagoCursoMatricula.FechaPago.Month) + 1;
 
@@ -641,7 +643,7 @@ namespace Sistema.Web.Controllers
                     .OrderByDescending(e => ((dynamic)e).montoPendiente)
                     .ToList();
 
-                // Paginación
+                // PaginaciÃƒÂ³n
                 var total = estudiantesOrdenados.Count;
                 var datos = estudiantesOrdenados
                     .Skip((pagina - 1) * porPagina)
@@ -683,7 +685,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Reportes/PorRed
-        // Análisis de estudiantes y finanzas por red
+        // AnÃƒÂ¡lisis de estudiantes y finanzas por red
         [HttpGet("[action]")]
         public async Task<IActionResult> PorRed([FromQuery] int? anioLectivoId = null)
         {
@@ -707,7 +709,7 @@ namespace Sistema.Web.Controllers
                     var externos = totalEstudiantes - internos;
                     var becados = estudiantesRed.Count(e => e.EsBecado);
 
-                    // Matrículas de estudiantes de esta red
+                    // MatrÃƒÂ­culas de estudiantes de esta red
                     var estudianteIds = estudiantesRed.Select(e => e.EstudianteId).ToList();
 
                     var matriculasRed = await _context.Matriculas
@@ -723,7 +725,7 @@ namespace Sistema.Web.Controllers
                         ? Math.Round((decimal)completadas / totalMatriculas * 100, 1)
                         : 0;
 
-                    // Calcular morosidad desde el PAGO DE MATRÍCULA
+                    // Calcular morosidad desde el PAGO DE MATRÃƒÂCULA
                     int estudiantesConMora = 0;
                     decimal montoPendiente = 0;
                     var hoyRed = DateTime.Now;
@@ -732,7 +734,7 @@ namespace Sistema.Web.Controllers
 
                     foreach (var mat in matriculasActivas)
                     {
-                        // Obtener el pago de matrícula
+                        // Obtener el pago de matrÃƒÂ­cula
                         var pagoMatricula = await _context.Pagos
                             .Where(p => p.MatriculaId == mat.MatriculaId &&
                                        p.TipoPago == "Matricula" &&
@@ -740,18 +742,18 @@ namespace Sistema.Web.Controllers
                             .OrderBy(p => p.FechaPago)
                             .FirstOrDefaultAsync();
 
-                        // Si no hay pago de matrícula, no hay mora
+                        // Si no hay pago de matrÃƒÂ­cula, no hay mora
                         if (pagoMatricula == null) continue;
 
-                        // Calcular meses transcurridos desde el pago de matrícula
+                        // Calcular meses transcurridos desde el pago de matrÃƒÂ­cula
                         int mesesTranscurridos = ((hoyRed.Year - pagoMatricula.FechaPago.Year) * 12) +
                                                 (hoyRed.Month - pagoMatricula.FechaPago.Month) + 1;
 
-                        // Materias que DEBERÍAN estar pagadas (meses anteriores al actual)
+                        // Materias que DEBERÃƒÂAN estar pagadas (meses anteriores al actual)
                         int materiasQueDeberianEstarPagadas = mesesTranscurridos - 1;
                         if (materiasQueDeberianEstarPagadas <= 0) continue;
 
-                        // Obtener total de materias del módulo
+                        // Obtener total de materias del mÃƒÂ³dulo
                         var totalMateriasModulo = await _context.Materias
                             .CountAsync(m => m.ModuloId == mat.ModuloId && m.Activo);
 
@@ -817,7 +819,7 @@ namespace Sistema.Web.Controllers
 
                     foreach (var mat in matriculasSinRed)
                     {
-                        // Obtener el pago de matrícula
+                        // Obtener el pago de matrÃƒÂ­cula
                         var pagoMatricula = await _context.Pagos
                             .Where(p => p.MatriculaId == mat.MatriculaId &&
                                        p.TipoPago == "Matricula" &&
@@ -825,10 +827,10 @@ namespace Sistema.Web.Controllers
                             .OrderBy(p => p.FechaPago)
                             .FirstOrDefaultAsync();
 
-                        // Si no hay pago de matrícula, no hay mora
+                        // Si no hay pago de matrÃƒÂ­cula, no hay mora
                         if (pagoMatricula == null) continue;
 
-                        // Calcular meses transcurridos desde el pago de matrícula
+                        // Calcular meses transcurridos desde el pago de matrÃƒÂ­cula
                         int mesesTranscurridos = ((hoySinRed.Year - pagoMatricula.FechaPago.Year) * 12) +
                                                 (hoySinRed.Month - pagoMatricula.FechaPago.Month) + 1;
 
@@ -877,7 +879,7 @@ namespace Sistema.Web.Controllers
                     });
                 }
 
-                // Ordenar por morosidad (mayor a menor) para identificar redes que necesitan atención
+                // Ordenar por morosidad (mayor a menor) para identificar redes que necesitan atenciÃƒÂ³n
                 var ranking = reportePorRed
                     .OrderBy(r => ((dynamic)r).tasaMorosidad)
                     .ToList();
@@ -952,7 +954,7 @@ namespace Sistema.Web.Controllers
 
                 var totalRegistros = await query.CountAsync();
 
-                // Métricas generales (sin paginación)
+                // MÃƒÂ©tricas generales (sin paginaciÃƒÂ³n)
                 var todosPagos = await query.ToListAsync();
 
                 var totalRecaudado = todosPagos.Sum(p => p.MontoFinal);
@@ -1055,7 +1057,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Reportes/Academico
-        // Reporte académico: promedios, aprobación, rendimiento por módulo/materia/red
+        // Reporte acadÃƒÂ©mico: promedios, aprobaciÃƒÂ³n, rendimiento por mÃƒÂ³dulo/materia/red
         [HttpGet("[action]")]
         public async Task<IActionResult> Academico(
             [FromQuery] int? anioLectivoId = null,
@@ -1066,7 +1068,7 @@ namespace Sistema.Web.Controllers
         {
             try
             {
-                // Si no se especifica año, tomar el más reciente
+                // Si no se especifica aÃƒÂ±o, tomar el mÃƒÂ¡s reciente
                 if (!anioLectivoId.HasValue)
                 {
                     var ultimoAnio = await _context.AniosLectivos
@@ -1086,7 +1088,7 @@ namespace Sistema.Web.Controllers
                     .Include(n => n.Materia)
                     .AsQueryable();
 
-                // Filtrar por año lectivo solo si se especificó o encontró uno
+                // Filtrar por aÃƒÂ±o lectivo solo si se especificÃƒÂ³ o encontrÃƒÂ³ uno
                 if (anioLectivoId.HasValue)
                 {
                     queryNotas = queryNotas.Where(n => n.Matricula.Modulo.AnioLectivoId == anioLectivoId.Value);
@@ -1130,14 +1132,14 @@ namespace Sistema.Web.Controllers
                     });
                 }
 
-                // ========== MÉTRICAS GENERALES ==========
+                // ========== MÃƒâ€°TRICAS GENERALES ==========
                 var promedioGeneral = Math.Round((decimal?)todasLasNotas.Average(n => n.Promedio) ?? 0, 2);
                 var totalNotas = todasLasNotas.Count;
                 var aprobados = todasLasNotas.Count(n => n.Promedio >= 70);
                 var reprobados = totalNotas - aprobados;
                 var porcentajeAprobacion = Math.Round((decimal)aprobados / totalNotas * 100, 1);
 
-                // ========== RENDIMIENTO POR MÓDULO ==========
+                // ========== RENDIMIENTO POR MÃƒâ€œDULO ==========
                 var porModulo = todasLasNotas
                     .GroupBy(n => new { n.Matricula.ModuloId, n.Matricula.Modulo.Nombre })
                     .Select(g => new
@@ -1280,7 +1282,7 @@ namespace Sistema.Web.Controllers
             {
                 return StatusCode(500, new
                 {
-                    message = "Error al generar el reporte académico",
+                    message = "Error al generar el reporte acadÃƒÂ©mico",
                     error = ex.Message,
                     innerError = ex.InnerException?.Message
                 });
@@ -1288,7 +1290,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Reportes/Ranking
-        // Ranking de estudiantes con paginación y filtros
+        // Ranking de estudiantes con paginaciÃƒÂ³n y filtros
         [HttpGet("[action]")]
         public async Task<IActionResult> Ranking(
             [FromQuery] int? anioLectivoId = null,
@@ -1302,7 +1304,7 @@ namespace Sistema.Web.Controllers
         {
             try
             {
-                // Si no se especifica año, tomar el más reciente
+                // Si no se especifica aÃƒÂ±o, tomar el mÃƒÂ¡s reciente
                 if (!anioLectivoId.HasValue)
                 {
                     var ultimoAnio = await _context.AniosLectivos
@@ -1322,7 +1324,7 @@ namespace Sistema.Web.Controllers
                     .Include(n => n.Materia)
                     .AsQueryable();
 
-                // Filtrar por año lectivo solo si se especificó o encontró uno
+                // Filtrar por aÃƒÂ±o lectivo solo si se especificÃƒÂ³ o encontrÃƒÂ³ uno
                 if (anioLectivoId.HasValue)
                 {
                     queryNotas = queryNotas.Where(n => n.Matricula.Modulo.AnioLectivoId == anioLectivoId.Value);
@@ -1403,7 +1405,7 @@ namespace Sistema.Web.Controllers
                     ? rankingCompleto.OrderBy(e => e.promedio).ThenBy(e => e.materiasAprobadas).ToList()
                     : rankingCompleto.OrderByDescending(e => e.promedio).ThenByDescending(e => e.materiasAprobadas).ToList();
 
-                // Agregar posición en ranking
+                // Agregar posiciÃƒÂ³n en ranking
                 var rankingConPosicion = rankingOrdenado
                     .Select((e, index) => new
                     {
@@ -1428,7 +1430,7 @@ namespace Sistema.Web.Controllers
                     })
                     .ToList();
 
-                // Paginación
+                // PaginaciÃƒÂ³n
                 var total = rankingConPosicion.Count;
                 var datosPaginados = rankingConPosicion
                     .Skip((pagina - 1) * porPagina)
@@ -1478,7 +1480,7 @@ namespace Sistema.Web.Controllers
         }
 
         // GET: api/Reportes/Predictivo
-        // Análisis predictivo de riesgo de deserción con recomendaciones personalizadas
+        // AnÃƒÂ¡lisis predictivo de riesgo de deserciÃƒÂ³n con recomendaciones personalizadas
         [HttpGet("[action]")]
         public async Task<IActionResult> Predictivo(
             [FromQuery] int? anioLectivoId = null,
@@ -1490,7 +1492,7 @@ namespace Sistema.Web.Controllers
         {
             try
             {
-                // Obtener matrículas activas
+                // Obtener matrÃƒÂ­culas activas
                 var query = _context.Matriculas
                     .Where(m => m.Estado == "Activa")
                     .Include(m => m.Estudiante)
@@ -1560,7 +1562,7 @@ namespace Sistema.Web.Controllers
                             if (materiasEnMora >= 3)
                             {
                                 puntosRiesgo += 40;
-                                factoresRiesgo.Add($"Mora crítica: {materiasEnMora} materias sin pagar");
+                                factoresRiesgo.Add($"Mora crÃƒÂ­tica: {materiasEnMora} materias sin pagar");
                                 recomendaciones.Add("URGENTE: Contactar inmediatamente para plan de pagos");
                             }
                             else if (materiasEnMora == 2)
@@ -1578,7 +1580,7 @@ namespace Sistema.Web.Controllers
                         }
                     }
 
-                    // FACTOR 2: Rendimiento académico
+                    // FACTOR 2: Rendimiento acadÃƒÂ©mico
                     var notasEstudiante = await _context.Notas
                         .Where(n => n.MatriculaId == mat.MatriculaId)
                         .ToListAsync();
@@ -1592,14 +1594,14 @@ namespace Sistema.Web.Controllers
                         if (promedioGeneral < 60)
                         {
                             puntosRiesgo += 30;
-                            factoresRiesgo.Add($"Rendimiento crítico: promedio {promedioGeneral:F1}");
-                            recomendaciones.Add("Asignar tutor académico urgente");
+                            factoresRiesgo.Add($"Rendimiento crÃƒÂ­tico: promedio {promedioGeneral:F1}");
+                            recomendaciones.Add("Asignar tutor acadÃƒÂ©mico urgente");
                         }
                         else if (promedioGeneral < 70)
                         {
                             puntosRiesgo += 20;
                             factoresRiesgo.Add($"Rendimiento bajo: promedio {promedioGeneral:F1}");
-                            recomendaciones.Add("Refuerzo académico y seguimiento personalizado");
+                            recomendaciones.Add("Refuerzo acadÃƒÂ©mico y seguimiento personalizado");
                         }
                         else if (promedioGeneral < 80)
                         {
@@ -1612,17 +1614,17 @@ namespace Sistema.Web.Controllers
                         {
                             puntosRiesgo += 15;
                             factoresRiesgo.Add($"{materiasReprobadas} materias reprobadas");
-                            recomendaciones.Add("Evaluación de dificultades de aprendizaje");
+                            recomendaciones.Add("EvaluaciÃƒÂ³n de dificultades de aprendizaje");
                         }
                     }
                     else
                     {
                         puntosRiesgo += 15;
                         factoresRiesgo.Add("Sin calificaciones registradas");
-                        recomendaciones.Add("Verificar asistencia y participación del estudiante");
+                        recomendaciones.Add("Verificar asistencia y participaciÃƒÂ³n del estudiante");
                     }
 
-                    // FACTOR 3: Patrón de pagos irregulares
+                    // FACTOR 3: PatrÃƒÂ³n de pagos irregulares
                     var historialPagos = await _context.Pagos
                         .Where(p => p.MatriculaId == mat.MatriculaId &&
                                    p.Estado == "Completado" &&
@@ -1643,12 +1645,12 @@ namespace Sistema.Web.Controllers
                         if (promedioDias > 45)
                         {
                             puntosRiesgo += 10;
-                            factoresRiesgo.Add("Pagos irregulares (más de 45 días entre pagos)");
-                            recomendaciones.Add("Configurar recordatorios automáticos de pago");
+                            factoresRiesgo.Add("Pagos irregulares (mÃƒÂ¡s de 45 dÃƒÂ­as entre pagos)");
+                            recomendaciones.Add("Configurar recordatorios automÃƒÂ¡ticos de pago");
                         }
                     }
 
-                    // FACTOR 4: Tiempo desde último pago
+                    // FACTOR 4: Tiempo desde ÃƒÂºltimo pago
                     var ultimoPago = await _context.Pagos
                         .Where(p => p.MatriculaId == mat.MatriculaId &&
                                    p.Estado == "Completado")
@@ -1662,14 +1664,14 @@ namespace Sistema.Web.Controllers
                         if (diasSinPagar > 60)
                         {
                             puntosRiesgo += 20;
-                            factoresRiesgo.Add($"{diasSinPagar} días sin realizar pagos");
+                            factoresRiesgo.Add($"{diasSinPagar} dÃƒÂ­as sin realizar pagos");
                             recomendaciones.Add("Visita presencial o llamada urgente");
                         }
                         else if (diasSinPagar > 40)
                         {
                             puntosRiesgo += 10;
-                            factoresRiesgo.Add($"{diasSinPagar} días sin pagos recientes");
-                            recomendaciones.Add("Contacto preventivo para evaluar situación");
+                            factoresRiesgo.Add($"{diasSinPagar} dÃƒÂ­as sin pagos recientes");
+                            recomendaciones.Add("Contacto preventivo para evaluar situaciÃƒÂ³n");
                         }
                     }
 
@@ -1681,7 +1683,7 @@ namespace Sistema.Web.Controllers
                         recomendaciones.Add("Evaluar elegibilidad para beca o descuento");
                     }
 
-                    // ============ CLASIFICACIÓN DE RIESGO ============
+                    // ============ CLASIFICACIÃƒâ€œN DE RIESGO ============
                     string nivelRiesgoCalculado;
                     string colorRiesgo;
                     decimal probabilidadDesercion;
@@ -1717,12 +1719,12 @@ namespace Sistema.Web.Controllers
                         continue;
                     }
 
-                    // Solo agregar si tiene algún riesgo
+                    // Solo agregar si tiene algÃƒÂºn riesgo
                     if (puntosRiesgo > 0)
                     {
                         if (puntosRiesgo >= 60)
                         {
-                            recomendaciones.Insert(0, "⚠️ ACCIÓN INMEDIATA REQUERIDA");
+                            recomendaciones.Insert(0, "Ã¢Å¡Â Ã¯Â¸Â ACCIÃƒâ€œN INMEDIATA REQUERIDA");
                         }
 
                         estudiantesConRiesgo.Add(new
@@ -1756,14 +1758,14 @@ namespace Sistema.Web.Controllers
                     .ThenBy(e => ((dynamic)e).estudianteNombre)
                     .ToList();
 
-                // Paginación
+                // PaginaciÃƒÂ³n
                 var total = estudiantesOrdenados.Count;
                 var datosPaginados = estudiantesOrdenados
                     .Skip((pagina - 1) * porPagina)
                     .Take(porPagina)
                     .ToList();
 
-                // Resumen estadístico
+                // Resumen estadÃƒÂ­stico
                 var porNivelRiesgo = estudiantesOrdenados
                     .GroupBy(e => ((dynamic)e).nivelRiesgo)
                     .Select(g => new {
@@ -1823,16 +1825,16 @@ namespace Sistema.Web.Controllers
                     datos = datosPaginados,
                     metodologia = new
                     {
-                        descripcion = "Análisis predictivo basado en múltiples factores de riesgo",
+                        descripcion = "AnÃƒÂ¡lisis predictivo basado en mÃƒÂºltiples factores de riesgo",
                         factoresEvaluados = new[]
                         {
                             "Morosidad y cantidad de materias sin pagar (40 pts)",
-                            "Rendimiento académico y materias reprobadas (30 pts)",
-                            "Tiempo desde último pago (20 pts)",
-                            "Regularidad en patrón de pagos (10 pts)",
+                            "Rendimiento acadÃƒÂ©mico y materias reprobadas (30 pts)",
+                            "Tiempo desde ÃƒÂºltimo pago (20 pts)",
+                            "Regularidad en patrÃƒÂ³n de pagos (10 pts)",
                             "Necesidad de apoyo financiero (5 pts)"
                         },
-                        escalaPuntos = "0-19: Bajo | 20-39: Medio | 40-59: Alto | 60+: Crítico",
+                        escalaPuntos = "0-19: Bajo | 20-39: Medio | 40-59: Alto | 60+: CrÃƒÂ­tico",
                         actualizacion = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
                     }
                 });
@@ -1841,7 +1843,7 @@ namespace Sistema.Web.Controllers
             {
                 return StatusCode(500, new
                 {
-                    message = "Error al generar el análisis predictivo",
+                    message = "Error al generar el anÃƒÂ¡lisis predictivo",
                     error = ex.Message,
                     innerError = ex.InnerException?.Message
                 });

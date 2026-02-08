@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -10,6 +11,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ModulosController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -120,13 +122,13 @@ namespace Sistema.Web.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Verificar que no exista otro módulo con el mismo número en el mismo año
+            // Verificar que no exista otro mÃƒÂ³dulo con el mismo nÃƒÂºmero en el mismo aÃƒÂ±o
             var existe = await _context.Modulos
                 .AnyAsync(m => m.AnioLectivoId == model.AnioLectivoId && m.Numero == model.Numero);
 
             if (existe)
             {
-                return BadRequest("Ya existe un módulo con ese número en el año lectivo seleccionado.");
+                return BadRequest("Ya existe un mÃƒÂ³dulo con ese nÃƒÂºmero en el aÃƒÂ±o lectivo seleccionado.");
             }
 
             var modulo = new Modulo
@@ -159,7 +161,7 @@ namespace Sistema.Web.Controllers
                 return NotFound();
             }
 
-            // Verificar que no exista otro módulo con el mismo número en el mismo año
+            // Verificar que no exista otro mÃƒÂ³dulo con el mismo nÃƒÂºmero en el mismo aÃƒÂ±o
             var existe = await _context.Modulos
                 .AnyAsync(m => m.AnioLectivoId == model.AnioLectivoId
                     && m.Numero == model.Numero
@@ -167,7 +169,7 @@ namespace Sistema.Web.Controllers
 
             if (existe)
             {
-                return BadRequest("Ya existe un módulo con ese número en el año lectivo seleccionado.");
+                return BadRequest("Ya existe un mÃƒÂ³dulo con ese nÃƒÂºmero en el aÃƒÂ±o lectivo seleccionado.");
             }
 
             modulo.AnioLectivoId = model.AnioLectivoId;

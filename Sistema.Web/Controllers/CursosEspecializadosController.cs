@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -11,6 +12,7 @@ namespace Sistema.Web.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class CursosEspecializadosController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -109,7 +111,7 @@ namespace Sistema.Web.Controllers
                 return BadRequest("La fecha de inicio debe ser anterior a la fecha de fin.");
             }
 
-            // Generar código único
+            // Generar cÃƒÂ³digo ÃƒÂºnico
             var ultimoCurso = await _context.CursosEspecializados
                 .OrderByDescending(c => c.CursoEspecializadoId)
                 .FirstOrDefaultAsync();
@@ -224,13 +226,13 @@ namespace Sistema.Web.Controllers
                 return NotFound();
             }
 
-            // Verificar que no tenga matrículas activas
+            // Verificar que no tenga matrÃƒÂ­culas activas
             var tieneMatriculasActivas = await _context.MatriculasCurso
                 .AnyAsync(m => m.CursoEspecializadoId == id && m.Estado == "Activa");
 
             if (tieneMatriculasActivas)
             {
-                return BadRequest("No se puede desactivar un curso con matrículas activas.");
+                return BadRequest("No se puede desactivar un curso con matrÃƒÂ­culas activas.");
             }
 
             curso.Activo = false;

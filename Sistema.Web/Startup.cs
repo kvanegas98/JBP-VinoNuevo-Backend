@@ -35,11 +35,17 @@ namespace Sistema.Web
         {
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
             services.AddDbContext<DbContextSistema>(options =>
-                options.UseSqlServer(Configuration.GetConnectionString("Conexion")));
+                options.UseSqlServer(Configuration.GetConnectionString("Conexion"),
+                    sqlOptions => sqlOptions.CommandTimeout(120)));
 
             services.AddCors(options => {
                 options.AddPolicy("Todos",
-                builder => builder.WithOrigins("*").WithHeaders("*").WithMethods("*"));
+                builder => {
+                    builder.WithOrigins("http://localhost:8080")
+                           .AllowAnyHeader()
+                           .AllowAnyMethod()
+                           .AllowCredentials();
+                });
             });
 
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Sistema.Datos;
@@ -8,11 +9,12 @@ using Sistema.Datos;
 namespace Sistema.Web.Controllers
 {
     /// <summary>
-    /// Controller para gestionar tipos de evaluación y sus componentes
-    /// Endpoints de solo lectura para configuración del sistema
+    /// Controller para gestionar tipos de evaluaciÃƒÂ³n y sus componentes
+    /// Endpoints de solo lectura para configuraciÃƒÂ³n del sistema
     /// </summary>
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class TiposEvaluacionController : ControllerBase
     {
         private readonly DbContextSistema _context;
@@ -23,7 +25,7 @@ namespace Sistema.Web.Controllers
         }
 
         // ===================================================================
-        // GET: api/TiposEvaluacion - Listar todos los tipos de evaluación
+        // GET: api/TiposEvaluacion - Listar todos los tipos de evaluaciÃƒÂ³n
         // ===================================================================
         [HttpGet]
         public async Task<IActionResult> Listar()
@@ -49,12 +51,12 @@ namespace Sistema.Web.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error al obtener tipos de evaluación", error = ex.Message });
+                return StatusCode(500, new { message = "Error al obtener tipos de evaluaciÃƒÂ³n", error = ex.Message });
             }
         }
 
         // ===================================================================
-        // GET: api/TiposEvaluacion/{id} - Obtener tipo de evaluación por ID
+        // GET: api/TiposEvaluacion/{id} - Obtener tipo de evaluaciÃƒÂ³n por ID
         // ===================================================================
         [HttpGet("{id}")]
         public async Task<IActionResult> ObtenerPorId(int id)
@@ -76,13 +78,13 @@ namespace Sistema.Web.Controllers
                     .FirstOrDefaultAsync();
 
                 if (tipo == null)
-                    return NotFound(new { message = "Tipo de evaluación no encontrado" });
+                    return NotFound(new { message = "Tipo de evaluaciÃƒÂ³n no encontrado" });
 
                 return Ok(tipo);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error al obtener tipo de evaluación", error = ex.Message });
+                return StatusCode(500, new { message = "Error al obtener tipo de evaluaciÃƒÂ³n", error = ex.Message });
             }
         }
 
@@ -99,7 +101,7 @@ namespace Sistema.Web.Controllers
                     .AnyAsync(t => t.TipoEvaluacionId == id);
 
                 if (!tipoExiste)
-                    return NotFound(new { message = "Tipo de evaluación no encontrado" });
+                    return NotFound(new { message = "Tipo de evaluaciÃƒÂ³n no encontrado" });
 
                 // Obtener componentes
                 var componentes = await _context.ComponenteEvaluacion
@@ -128,7 +130,7 @@ namespace Sistema.Web.Controllers
                     componentes,
                     totalPorcentaje = totalPeso,
                     pesosValidos,
-                    mensaje = pesosValidos ? "Configuración válida" : "¡ADVERTENCIA! Los porcentajes no suman 100%"
+                    mensaje = pesosValidos ? "ConfiguraciÃƒÂ³n vÃƒÂ¡lida" : "Ã‚Â¡ADVERTENCIA! Los porcentajes no suman 100%"
                 });
             }
             catch (Exception ex)
@@ -138,7 +140,7 @@ namespace Sistema.Web.Controllers
         }
 
         // ===================================================================
-        // GET: api/TiposEvaluacion/Validar/{id} - Validar configuración de un tipo
+        // GET: api/TiposEvaluacion/Validar/{id} - Validar configuraciÃƒÂ³n de un tipo
         // ===================================================================
         [HttpGet("Validar/{id}")]
         public async Task<IActionResult> ValidarConfiguracion(int id)
@@ -149,7 +151,7 @@ namespace Sistema.Web.Controllers
                     .FirstOrDefaultAsync(t => t.TipoEvaluacionId == id);
 
                 if (tipo == null)
-                    return NotFound(new { message = "Tipo de evaluación no encontrado" });
+                    return NotFound(new { message = "Tipo de evaluaciÃƒÂ³n no encontrado" });
 
                 var componentes = await _context.ComponenteEvaluacion
                     .Where(c => c.TipoEvaluacionId == id && c.Activo)
@@ -162,7 +164,7 @@ namespace Sistema.Web.Controllers
                 // 1. Validar que existan componentes
                 if (!componentes.Any())
                 {
-                    errores.Add("No hay componentes de evaluación configurados");
+                    errores.Add("No hay componentes de evaluaciÃƒÂ³n configurados");
                 }
 
                 // 2. Validar cantidad de componentes
@@ -213,7 +215,7 @@ namespace Sistema.Web.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error al validar configuración", error = ex.Message });
+                return StatusCode(500, new { message = "Error al validar configuraciÃƒÂ³n", error = ex.Message });
             }
         }
     }

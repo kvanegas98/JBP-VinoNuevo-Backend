@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Sistema.Web.Controllers
 {
     [ApiController]
+    [Authorize]
     public class HomeController : ControllerBase
     {
         [HttpGet("")]
@@ -142,52 +144,52 @@ namespace Sistema.Web.Controllers
 <body>
     <div class='container'>
         <div class='header'>
-            <h1>🎓 Sistema de Gestión Vino Nuevo JBP</h1>
-            <p>API REST para Gestión Académica y Financiera</p>
+            <h1>Ã°Å¸Å½â€œ Sistema de GestiÃƒÂ³n Vino Nuevo JBP</h1>
+            <p>API REST para GestiÃƒÂ³n AcadÃƒÂ©mica y Financiera</p>
         </div>
 
         <div class='content'>
             <div class='section'>
-                <h2>📋 Descripción del Proyecto</h2>
+                <h2>Ã°Å¸â€œâ€¹ DescripciÃƒÂ³n del Proyecto</h2>
                 <p>
-                    Sistema integral de gestión académica y financiera diseñado específicamente para el
-                    Instituto Teológico Vino Nuevo JBP. Proporciona una solución completa para administrar
-                    estudiantes, matrículas, pagos, calificaciones y generar reportes académicos y financieros.
+                    Sistema integral de gestiÃƒÂ³n acadÃƒÂ©mica y financiera diseÃƒÂ±ado especÃƒÂ­ficamente para el
+                    Instituto TeolÃƒÂ³gico Vino Nuevo JBP. Proporciona una soluciÃƒÂ³n completa para administrar
+                    estudiantes, matrÃƒÂ­culas, pagos, calificaciones y generar reportes acadÃƒÂ©micos y financieros.
                 </p>
             </div>
 
             <div class='section'>
-                <h2>🔑 Módulos Principales</h2>
+                <h2>Ã°Å¸â€â€˜ MÃƒÂ³dulos Principales</h2>
                 <div class='modules'>
                     <div class='module-card'>
-                        <h3>👤 Autenticación y Usuarios</h3>
-                        <p>Sistema de login con JWT, gestión de usuarios y roles con seguridad avanzada.</p>
+                        <h3>Ã°Å¸â€˜Â¤ AutenticaciÃƒÂ³n y Usuarios</h3>
+                        <p>Sistema de login con JWT, gestiÃƒÂ³n de usuarios y roles con seguridad avanzada.</p>
                     </div>
                     <div class='module-card'>
-                        <h3>📚 Gestión de Estudiantes</h3>
-                        <p>Registro completo de estudiantes internos y externos, incluyendo gestión de becas.</p>
+                        <h3>Ã°Å¸â€œÅ¡ GestiÃƒÂ³n de Estudiantes</h3>
+                        <p>Registro completo de estudiantes internos y externos, incluyendo gestiÃƒÂ³n de becas.</p>
                     </div>
                     <div class='module-card'>
-                        <h3>📝 Matrículas</h3>
-                        <p>Control de inscripciones a módulos académicos y materias por período lectivo.</p>
+                        <h3>Ã°Å¸â€œÂ MatrÃƒÂ­culas</h3>
+                        <p>Control de inscripciones a mÃƒÂ³dulos acadÃƒÂ©micos y materias por perÃƒÂ­odo lectivo.</p>
                     </div>
                     <div class='module-card'>
-                        <h3>💰 Sistema de Pagos</h3>
-                        <p>Gestión de pagos de matrícula y mensualidades con control de morosidad.</p>
+                        <h3>Ã°Å¸â€™Â° Sistema de Pagos</h3>
+                        <p>GestiÃƒÂ³n de pagos de matrÃƒÂ­cula y mensualidades con control de morosidad.</p>
                     </div>
                     <div class='module-card'>
-                        <h3>📊 Calificaciones</h3>
-                        <p>Registro y consulta de notas académicas por materia y estudiante.</p>
+                        <h3>Ã°Å¸â€œÅ  Calificaciones</h3>
+                        <p>Registro y consulta de notas acadÃƒÂ©micas por materia y estudiante.</p>
                     </div>
                     <div class='module-card'>
-                        <h3>📈 Reportes</h3>
-                        <p>Dashboard ejecutivo, reportes de morosidad y análisis financiero detallado.</p>
+                        <h3>Ã°Å¸â€œË† Reportes</h3>
+                        <p>Dashboard ejecutivo, reportes de morosidad y anÃƒÂ¡lisis financiero detallado.</p>
                     </div>
                 </div>
             </div>
 
             <div class='section'>
-                <h2>🛠️ Stack Tecnológico</h2>
+                <h2>Ã°Å¸â€ºÂ Ã¯Â¸Â Stack TecnolÃƒÂ³gico</h2>
                 <div class='tech-stack'>
                     <span class='tech-badge'>.NET Core 2.1</span>
                     <span class='tech-badge'>ASP.NET Core Web API</span>
@@ -201,26 +203,26 @@ namespace Sistema.Web.Controllers
             </div>
 
             <div class='section'>
-                <h2>🔒 Características de Seguridad</h2>
+                <h2>Ã°Å¸â€â€™ CaracterÃƒÂ­sticas de Seguridad</h2>
                 <p>
-                    ✓ Autenticación basada en tokens JWT<br>
-                    ✓ Contraseñas hasheadas con HMACSHA512 + salt<br>
-                    ✓ Tokens con expiración de 24 horas<br>
-                    ✓ Control de acceso basado en roles<br>
-                    ✓ Validación de datos en todas las operaciones
+                    Ã¢Å“â€œ AutenticaciÃƒÂ³n basada en tokens JWT<br>
+                    Ã¢Å“â€œ ContraseÃƒÂ±as hasheadas con HMACSHA512 + salt<br>
+                    Ã¢Å“â€œ Tokens con expiraciÃƒÂ³n de 24 horas<br>
+                    Ã¢Å“â€œ Control de acceso basado en roles<br>
+                    Ã¢Å“â€œ ValidaciÃƒÂ³n de datos en todas las operaciones
                 </p>
             </div>
 
             <div class='status'>
-                <span class='status-badge'>✓ API Funcionando Correctamente</span>
+                <span class='status-badge'>Ã¢Å“â€œ API Funcionando Correctamente</span>
                 <p style='margin-top: 15px; color: #155724;'>
-                    El servidor está activo y listo para recibir peticiones
+                    El servidor estÃƒÂ¡ activo y listo para recibir peticiones
                 </p>
             </div>
         </div>
 
         <div class='footer'>
-            <p>© 2026 Instituto Teológico Vino Nuevo JBP | API REST v1.0</p>
+            <p>Ã‚Â© 2026 Instituto TeolÃƒÂ³gico Vino Nuevo JBP | API REST v1.0</p>
             <p style='margin-top: 10px; font-size: 0.9em;'>
                 Powered by .NET Core 2.1 | Desarrollado por Kevin Vanegas
             </p>
